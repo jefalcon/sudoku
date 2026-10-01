@@ -1,1683 +1,1612 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sudoku — puzzle con solución única garantizada</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sudoku — Solución única garantizada</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #0f1118;
-  --panel: #1a1d29;
-  --panel-2: #232736;
-  --line: #2e3346;
-  --text: #e9ebf5;
-  --muted: #9298ad;
-  --accent: #4f7dff;
-  --accent-2: #7aa0ff;
-  --ok: #3fcf8e;
-  --warn: #ffb020;
-  --err: #ff5c5c;
-  --hl: rgba(79, 125, 255, 0.16);
-}
-html, body { height: 100%; }
-body {
-  background: radial-gradient(1100px 700px at 15% -10%, #1c2033 0%, var(--bg) 60%);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  display: flex; flex-direction: column; align-items: center;
-  padding: 14px; gap: 12px;
-}
-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
-h1 { font-size: 1.3rem; letter-spacing: 0.12em; font-weight: 700; }
-.stats { display: flex; gap: 14px; color: var(--muted); font-size: 0.9rem; flex-wrap: wrap; justify-content: center; }
-.stats b { color: var(--text); font-variant-numeric: tabular-nums; }
-.hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
-select, button {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px 14px; font-size: 0.92rem; cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-select:hover, button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-button.primary:hover { background: var(--accent-2); }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
-button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.board-wrap { position: relative; }
-#board {
-  display: grid;
-  grid-template-columns: repeat(9, var(--cell, 52px));
-  grid-template-rows: repeat(9, var(--cell, 52px));
-  border: 2px solid #454c68; border-radius: 6px; overflow: hidden;
-  background: var(--panel);
-  touch-action: manipulation;
-}
-.cell {
-  position: relative; border: 1px solid var(--line); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--cell, 52px) * 0.5); font-weight: 600; user-select: none;
-}
-.cell[data-c="2"], .cell[data-c="5"] { border-right: 2px solid #454c68; }
-.cell[data-r="2"], .cell[data-r="5"] { border-bottom: 2px solid #454c68; }
-.cell.hl-sel { background: var(--hl); box-shadow: inset 0 0 0 2px var(--accent); }
-.cell.hl-line { background: rgba(255, 255, 255, 0.045); }
-.cell.hl-box { background: rgba(255, 255, 255, 0.03); }
-.cell.hl-same { background: rgba(79, 125, 255, 0.28); }
-.cell.hl-sel.hl-same { background: rgba(79, 125, 255, 0.35); }
-.cell.hl-conflict { background: rgba(255, 92, 92, 0.3); }
-.cell.hl-checkerr { background: rgba(255, 92, 92, 0.16); }
-.cell.hl-hinted { background: rgba(63, 207, 142, 0.35); }
-.cell.flash-wrong { animation: shake 0.3s; }
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-.cell .n.given { color: #f2f4ff; }
-.cell .n.user { color: var(--accent-2); }
-.cell .notes {
-  position: absolute; inset: 2px; display: none;
-  grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
-  pointer-events: none;
-}
-.cell .notes span {
-  display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--cell, 52px) * 0.2); font-weight: 500; color: var(--muted);
-}
-#paused-center {
-  display: none; position: absolute; inset: 0; z-index: 4;
-  align-items: center; justify-content: center;
-  background: rgba(15, 17, 24, 0.92); border-radius: 6px;
-}
-body[data-state="paused"] #paused-center { display: flex; }
-body[data-state="paused"] #board .cell { visibility: hidden; }
-#win {
-  position: absolute; inset: 0; display: none;
-  align-items: center; justify-content: center; z-index: 5;
-  background: rgba(10, 12, 20, 0.85); border-radius: 6px;
-}
-#win.show { display: flex; }
-.win-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 22px 30px; text-align: center; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-}
-.win-card h2 { margin-bottom: 6px; font-size: 1.25rem; }
-.win-card p { color: var(--muted); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
-footer { color: var(--muted); font-size: 0.8rem; text-align: center; line-height: 1.6; max-width: 860px; }
-kbd {
-  background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
-  border-radius: 4px; padding: 0 5px; font-family: ui-monospace, monospace; font-size: 0.78rem;
-}
-#toast {
-  position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
-  border-radius: 10px; padding: 10px 18px; font-size: 0.92rem;
-  opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s;
-  max-width: 90vw; text-align: center; z-index: 60; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-}
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#toast.warn { border-color: var(--warn); }
-#toast.err { border-color: var(--err); }
-#toast.ok { border-color: var(--ok); }
-#overlay {
-  position: fixed; inset: 0; display: none; align-items: flex-start; justify-content: center;
-  background: rgba(5, 7, 12, 0.72); z-index: 50; overflow-y: auto; padding: 24px 12px;
-}
-#overlay.show { display: flex; }
-.panel {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  width: min(860px, 96vw); padding: 18px 20px; box-shadow: 0 16px 60px rgba(0, 0, 0, 0.6);
-}
-.panel h2 { font-size: 1.05rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
-.dot.bad { background: var(--err); }
-.panel h3 { font-size: 0.85rem; color: var(--muted); margin: 14px 0 8px; text-transform: uppercase; letter-spacing: 0.08em; }
-.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
-.meta-item {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 10px; font-size: 0.82rem; display: flex; flex-direction: column; gap: 3px;
-}
-.meta-item .k { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.meta-item .v { font-variant-numeric: tabular-nums; font-size: 0.95rem; overflow-wrap: anywhere; }
-.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-label.chk { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
-.bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--line); }
-.bar > div { height: 100%; width: 0%; background: var(--accent); transition: width 0.2s; }
-#autotest-out {
-  background: #0b0d14; border: 1px solid var(--line); border-radius: 8px; padding: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem; line-height: 1.5; max-height: 260px; overflow-y: auto;
-  white-space: pre-wrap; color: #b9c2dd; margin-top: 8px;
-}
-.close-row { display: flex; justify-content: flex-end; margin-top: 4px; }
-@media (max-width: 600px) {
-  #board { --cell: min(9.6vw, 44px); }
-  .cell { font-size: calc(var(--cell) * 0.52); }
-}
+  :root {
+    --bg: #e8edf4;
+    --card: #ffffff;
+    --ink: #182742;
+    --muted: #64748b;
+    --line: #d8e0ec;
+    --accent: #1d4ed8;
+    --accent-ink: #173da0;
+    --accent-soft: #e2ebfd;
+    --related: #f1f6fe;
+    --same: #d5e4fc;
+    --error: #dc2626;
+    --error-bg: #fee2e2;
+    --good: #047857;
+    --good-bg: #e2f4eb;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(24, 39, 66, 0.06), 0 10px 28px rgba(24, 39, 66, 0.10);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+  }
+  .app { width: 100%; max-width: 560px; padding: 20px 16px 28px; display: flex;
+    flex-direction: column; align-items: center; gap: 14px; }
+  #screen-start, #screen-game { display: flex; flex-direction: column;
+    align-items: center; gap: 13px; width: 100%; }
+  h1 { margin: 6px 0 0; font-size: 1.9rem; letter-spacing: -0.01em; text-align: center; }
+  #level-name {
+    display: inline-block; vertical-align: middle;
+    font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--accent-ink); background: var(--accent-soft);
+    border-radius: 999px; padding: 3px 12px; margin-left: 6px;
+  }
+  .hidden { display: none !important; }
+  button {
+    font: inherit; font-size: 1rem; padding: 10px 14px; border-radius: var(--radius);
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    cursor: pointer; touch-action: manipulation;
+    transition: border-color 0.12s ease, background 0.12s ease, transform 0.05s ease;
+  }
+  button:hover { border-color: var(--accent); background: #fbfdff; }
+  button:active { transform: scale(0.97); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff;
+    font-weight: 700; box-shadow: 0 4px 12px rgba(29, 78, 216, 0.28); }
+  button.primary:hover { background: #1a45bd; }
+  button.on { background: var(--accent-soft); border-color: var(--accent);
+    color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .levels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: min(92vw, 440px); }
+  .levels button { padding: 16px 6px; font-weight: 700; font-size: 1.05rem;
+    box-shadow: 0 1px 2px rgba(24, 39, 66, 0.06); }
+  .levels button:hover { background: var(--accent-soft); }
+  .levels small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .seedrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .seedrow input { width: 6em; padding: 9px 10px; font: inherit; font-size: 1rem;
+    border-radius: var(--radius); border: 1px solid var(--line); background: var(--card); }
+  .help { font-size: 0.85rem; color: var(--muted); max-width: 460px; text-align: center; margin: 0; }
+  .help kbd { background: #fff; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 6px; padding: 0 6px; font-size: 0.78rem; font-family: inherit; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    width: min(92vw, 440px); font-variant-numeric: tabular-nums; }
+  .stats > span {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 7px 4px 8px; text-align: center;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .stats > span > span {
+    display: block; font-size: 1.12rem; font-weight: 700; color: var(--ink);
+    letter-spacing: 0; text-transform: none; margin-top: 1px;
+  }
+  .board { display: grid; grid-template-columns: repeat(9, 1fr);
+    width: min(92vw, 440px); aspect-ratio: 1;
+    border: 2px solid var(--ink); border-radius: var(--radius); overflow: hidden;
+    background: var(--ink); box-shadow: var(--shadow); }
+  .cell { display: flex; align-items: center; justify-content: center;
+    font-size: clamp(1.15rem, 5vw, 1.65rem); font-weight: 500; color: var(--accent-ink);
+    background: #fff; cursor: pointer; user-select: none; position: relative;
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    transition: background 0.12s ease; }
+  .cell:nth-child(9n + 3), .cell:nth-child(9n + 6) { border-right: 2px solid var(--ink); }
+  .cell:nth-child(n + 19):nth-child(-n + 27),
+  .cell:nth-child(n + 46):nth-child(-n + 54) { border-bottom: 2px solid var(--ink); }
+  .cell.given { background: #f6f9fd; color: var(--ink); font-weight: 700; cursor: default; }
+  .cell.hinted { color: var(--good); background: var(--good-bg); font-weight: 700; cursor: default; }
+  .cell.selected { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cell.related { background: var(--related); }
+  .cell.same { background: var(--same); font-weight: 700; }
+  .cell.conflict { color: var(--error); background: var(--error-bg); }
+  .cell .notes { display: grid; grid-template-columns: repeat(3, 1fr);
+    width: 100%; height: 100%; font-size: clamp(0.5rem, 2vw, 0.65rem);
+    color: #475569; font-weight: 400; }
+  .cell .notes span { display: flex; align-items: center; justify-content: center; }
+  .pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: min(92vw, 440px); }
+  .pad button { font-size: 1.3rem; font-weight: 700; padding: 12px 0; color: var(--ink);
+    box-shadow: 0 1px 2px rgba(24, 39, 66, 0.06); }
+  .pad button:last-child { font-size: 0.9rem; }
+  .pad button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(92vw, 440px); }
+  .actions button { padding: 10px 4px; font-size: 0.88rem; font-weight: 600; }
+  #btn-new2 { border-color: var(--accent); color: var(--accent-ink); }
+  .message { min-height: 1.6em; margin: 0; text-align: center; font-weight: 600; font-size: 0.95rem; }
+  .message.success { color: var(--good); }
+  .message.warning { color: #b45309; }
+  .message.error { color: var(--error); }
+  .veil { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.92); color: #fff;
+    display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center;
+    z-index: 30; text-align: center; padding: 16px; }
+  .panel { background: var(--card); color: var(--ink); border-radius: 16px; padding: 24px;
+    max-width: min(92vw, 440px); display: flex; flex-direction: column; gap: 12px;
+    align-items: center; text-align: center; box-shadow: var(--shadow); }
+  .panel h2 { margin: 0 0 4px; letter-spacing: -0.01em; }
+  .panel p { margin: 0; }
+  .debug { position: fixed; left: 8px; bottom: 8px; z-index: 40; background: #0f172a; color: #e2e8f0;
+    font-family: monospace; font-size: 0.75rem; border-radius: 8px; padding: 10px 12px;
+    max-width: min(94vw, 460px); max-height: 60vh; overflow: auto; }
+  .debug table { border-collapse: collapse; }
+  .debug td { padding: 1px 8px 1px 0; }
+  .debug input { width: 5em; font: inherit; }
+  .debug button { font-size: 0.75rem; padding: 4px 8px; }
+  #autotest-results { white-space: pre-wrap; }
+  .pass { color: #4ade80; } .fail { color: #f87171; }
+  @media (min-width: 920px) {
+    .app { max-width: 940px; }
+    #screen-game { display: grid; grid-template-columns: minmax(0, 440px) 320px;
+      gap: 14px 20px; justify-content: center; align-items: start; }
+    #screen-game h1 { grid-column: 1 / -1; }
+    #screen-game .board { grid-column: 1; grid-row: 2 / span 3; width: 100%; max-width: 460px; }
+    #screen-game .stats { grid-column: 2; grid-row: 2; width: 100%; grid-template-columns: repeat(2, 1fr); }
+    #screen-game .pad { grid-column: 2; grid-row: 3; width: 100%; }
+    #screen-game .actions { grid-column: 2; grid-row: 4; width: 100%; }
+    #screen-game .message { grid-column: 1 / -1; }
+    #screen-game .help { grid-column: 1 / -1; }
+  }
+  @media (max-width: 420px) {
+    .app { padding: 14px 10px 24px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 1.6rem; }
+  }
 </style>
 </head>
-<body data-state="menu">
+<body>
+<main class="app">
+  <!-- Estado: selección de dificultad -->
+  <section id="screen-start">
+    <h1>Sudoku</h1>
+    <p class="help">Cada puzzle se genera al momento con solución única garantizada.
+      Elige nivel y semilla: la misma semilla + nivel produce siempre el mismo puzzle.</p>
+    <div class="levels">
+      <button type="button" data-level="facil">Fácil<small>solo singles</small></button>
+      <button type="button" data-level="medio">Medio<small>hasta parejas</small></button>
+      <button type="button" data-level="dificil">Difícil<small>hasta X-Wing</small></button>
+      <button type="button" data-level="experto">Experto<small>puede exigir búsqueda</small></button>
+    </div>
+    <div class="seedrow">
+      <label>Semilla: <input id="seed-input" type="number" min="1" value="1" /></label>
+      <button id="btn-start" type="button" class="primary">Jugar</button>
+    </div>
+    <p class="help">Pulsa un nivel (o <kbd>1</kbd>–<kbd>4</kbd>) para jugar directamente ·
+      <kbd>Enter</kbd> o <kbd>Jugar</kbd> usa la semilla escrita ·
+      <kbd>`</kbd> o <kbd>F1</kbd> overlay de depuración</p>
+  </section>
 
-<header>
-  <h1>SUDOKU</h1>
-  <div class="stats">
-    <span>⏱ <b id="time">00:00</b></span>
-    <span>❌ Errores: <b id="errors">0</b></span>
-    <span>💡 Pistas: <b id="tips">0/3</b></span>
-  </div>
-</header>
+  <!-- Estado: en juego -->
+  <section id="screen-game" class="hidden">
+    <h1>Sudoku <span id="level-name"></span></h1>
+    <div class="stats">
+      <span>Tiempo: <span id="timer">00:00</span></span>
+      <span>Errores: <span id="errors">0</span></span>
+      <span>Pistas: <span id="hints-left">3</span></span>
+      <span>Récord: <span id="best">--:--</span></span>
+    </div>
+    <div id="board" class="board" aria-label="Tablero de sudoku"></div>
+    <div id="pad" class="pad" aria-label="Selector de números"></div>
+    <div class="actions">
+      <button id="btn-check" type="button">Comprobar: ON</button>
+      <button id="btn-hint" type="button">Pista (H)</button>
+      <button id="btn-undo" type="button">Deshacer</button>
+      <button id="btn-redo" type="button">Rehacer</button>
+      <button id="btn-notes" type="button">Notas: OFF</button>
+      <button id="btn-pause" type="button">Pausa (P)</button>
+      <button id="btn-restart" type="button">Reiniciar (R)</button>
+      <button id="btn-new2" type="button">Nuevo (Enter)</button>
+      <button id="btn-mute" type="button">Sonido: ON</button>
+    </div>
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+    <p class="help">Flechas mover · <kbd>1</kbd>–<kbd>9</kbd> rellenar · <kbd>0</kbd>/<kbd>Supr</kbd> borrar ·
+      <kbd>N</kbd> notas · <kbd>U</kbd> deshacer · <kbd>H</kbd> pista · <kbd>C</kbd> comprobar ·
+      <kbd>M</kbd> sonido · <kbd>`</kbd>/<kbd>F1</kbd> depuración</p>
+  </section>
+</main>
 
-<div class="hud">
-  <label style="display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:0.9rem">
-    Nivel
-    <select id="level-select">
-      <option value="facil">Fácil</option>
-      <option value="medio">Medio</option>
-      <option value="dificil">Difícil</option>
-      <option value="experto">Experto</option>
-    </select>
-  </label>
-  <button id="btn-check" title="Resaltar conflictos: mismo número repetido en fila, columna o caja">Comprobar</button>
-  <button id="btn-hint" title="Rellena UNA celda con una deducción lógica válida, nombrando la técnica (máx. 3 por partida)">💡 Pista</button>
-  <button id="btn-undo" title="Deshacer (Ctrl+Z)">↩ Deshacer</button>
-  <button id="btn-redo" title="Rehacer (Ctrl+Y)">↪ Rehacer</button>
-  <button id="btn-restart" title="Reiniciar el puzzle actual (R)">Reiniciar</button>
-  <button id="btn-new" class="primary" title="Nueva partida (Enter)">Nueva partida</button>
-  <button id="btn-notes" title="Alternar modo notas / lápiz (N)">✏️ Notas (N)</button>
+<!-- Estado: pausa -->
+<div id="pause-veil" class="veil hidden">
+  <h2>En pausa</h2>
+  <p>Pulsa <kbd>P</kbd> para continuar.</p>
 </div>
 
-<div class="board-wrap">
-  <div id="board" role="grid" aria-label="Tablero de Sudoku"></div>
-  <div id="paused-center"><div class="win-card"><h2>⏸ Pausa</h2><p>Pulsa <kbd>P</kbd> para continuar</p></div></div>
-  <div id="win"><div class="win-card">
-    <h2>🎉 ¡Puzzle resuelto!</h2>
-    <p id="win-text"></p>
-    <button id="btn-again" class="primary">Jugar otra vez (Enter)</button>
-  </div></div>
-</div>
-
-<footer>
-  <kbd>←↑↓→</kbd> mover · <kbd>1</kbd>–<kbd>9</kbd> colocar · <kbd>0</kbd>/<kbd>Supr</kbd> borrar · <kbd>N</kbd> notas ·
-  <kbd>Enter</kbd> nueva partida · <kbd>R</kbd> reiniciar · <kbd>P</kbd> pausa · <kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> deshacer/rehacer ·
-  <kbd>`</kbd> o <kbd>F1</kbd> overlay de depuración
-</footer>
-
-<div id="toast" role="status"></div>
-
-<div id="overlay">
+<!-- Estado: resuelto -->
+<div id="victory-veil" class="veil hidden">
   <div class="panel">
-    <h2><span class="dot" id="status-dot"></span> Overlay de depuración</h2>
-    <div class="meta-grid">
-      <div class="meta-item"><span class="k">Seed (efectiva)</span><span class="v" id="dbg-seed">—</span></div>
-      <div class="meta-item"><span class="k">Nivel</span><span class="v" id="dbg-level">—</span></div>
-      <div class="meta-item"><span class="k">Pistas del puzzle</span><span class="v" id="dbg-clues">—</span></div>
-      <div class="meta-item"><span class="k">Soluciones (solver)</span><span class="v" id="dbg-sol">—</span></div>
-      <div class="meta-item"><span class="k">Técnica más difícil</span><span class="v" id="dbg-tech">—</span></div>
-      <div class="meta-item"><span class="k">Estado</span><span class="v" id="dbg-state">—</span></div>
+    <h2>¡Resuelto!</h2>
+    <p id="victory-info"></p>
+    <div>
+      <button id="btn-again" type="button" class="primary">Nueva partida (Enter)</button>
+      <button id="btn-view" type="button">Ver tablero</button>
     </div>
-
-    <h3>Motor</h3>
-    <div class="row">
-      <label class="chk"><input type="checkbox" id="dbg-errmode"> Marcar en rojo los valores erróneos al escribirlos</label>
-    </div>
-    <p style="color:var(--muted);font-size:0.8rem;margin-top:8px" id="dbg-engine">—</p>
-
-    <h3>Gradación lógica del puzzle actual</h3>
-    <div class="row" style="margin-bottom:6px">
-      <span id="dbg-rating-code" style="font-weight:700">—</span>
-      <span id="dbg-rating-desc" style="color:var(--muted);font-size:0.85rem">Sin calcular todavía</span>
-    </div>
-    <div class="bar"><div id="dbg-rating-bar"></div></div>
-    <p style="color:var(--muted);font-size:0.78rem;margin-top:6px">
-      La dificultad se gradúa por la técnica lógica más difícil necesaria para resolver sin adivinar,
-      no por el número de pistas. El nivel elegido actúa como techo: el generador solo retira una celda
-      si el puzzle resultante sigue siendo resoluble por lógica pura dentro de ese techo y conserva solución única.
-    </p>
-
-    <h3>AUTOTEST — auditoría de unicidad del generador</h3>
-    <div class="row">
-      <label class="chk">Puzzles: <input type="number" id="autotest-count" value="100" min="1" max="500" step="50" style="width:80px"></label>
-      <button id="autotest-run" class="primary">▶ Ejecutar AUTOTEST</button>
-      <button id="autotest-stop" disabled>⏹ Detener</button>
-    </div>
-    <div class="bar" style="margin-top:10px"><div id="autotest-progress"></div></div>
-    <p style="color:var(--muted);font-size:0.82rem;margin-top:6px" id="autotest-status">
-      Recorre semillas consecutivas desde la seed base, genera cada puzzle de verdad (sin banco pregenerado)
-      y afirma con el solver que TODOS tienen exactamente 1 solución.
-    </p>
-    <div id="autotest-out">— sin resultados todavía —</div>
-    <div class="close-row"><button id="overlay-close">Cerrar ( ` )</button></div>
   </div>
+</div>
+
+<!-- Overlay de depuración (oculto por defecto) -->
+<div id="debug" class="debug hidden">
+  <table>
+    <tr><td>seed</td><td id="dbg-seed">-</td></tr>
+    <tr><td>nivel</td><td id="dbg-level">-</td></tr>
+    <tr><td>pistas</td><td id="dbg-clues">-</td></tr>
+    <tr><td>soluciones (solver)</td><td id="dbg-count">-</td></tr>
+    <tr><td>técnica máxima</td><td id="dbg-tech">-</td></tr>
+  </table>
+  <div>
+    N: <input id="autotest-n" type="number" min="1" max="1000" value="100" />
+    base: <input id="autotest-base" type="number" min="1" value="1" />
+    <button id="btn-autotest" type="button">AUTOTEST</button>
+  </div>
+  <div id="autotest-results">Autotest pendiente.</div>
 </div>
 
 <script>
 'use strict';
 
-/* ===================== NÚCLEO ALGORÍTMICO: INICIO =====================
- * Este bloque es el motor puro del juego:
- *  - RNG determinista (mulberry32) sembrado con ?seed=N. Math.random()
- *    está PROHIBIDO y no aparece en ninguna parte del archivo; el tiempo
- *    (Date.now) tampoco participa en la generación.
- *  - Solver: propagación de restricciones + backtracking con heurística MRV.
- *    countSolutions() corta en cuanto encuentra 2 respuestas (0 / 1 / 2+).
- *    Es el oráculo de unicidad y la instrumentación de auditoría: NUNCA
- *    autocompleta el tablero del jugador.
- *  - Generador: crea primero una solución completa y válida; después perfora
- *    celdas comprobando ANTES de cada retirada definitiva que el puzzle
- *    resultante conserva EXACTAMENTE 1 solución; si pasaría a tener 2 o más,
- *    la celda NO se retira. Además exige que el puzzle siga siendo resoluble
- *    por TÉCNICAS LÓGICAS dentro del techo del nivel (sin adivinar).
- *  - Gradador: resuelve mediante técnicas lógicas ordenadas (singles,
- *    locked candidates, pares/tríos/cuádruples, X-Wing, Swordfish, XY/XYZ-Wing)
- *    y determina la técnica más difícil necesaria. Nada de banques pregenerados:
- *    cada puzzle se construye desde la semilla y el nivel.
- * ===================================================================== */
+// === RNG (única fuente de azar; prohibido el azar sin semilla) ===
+// Mulberry32: determinista para la misma semilla en cualquier navegador.
 
-/* ---------------- RNG determinista (mulberry32) ---------------- */
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/**
+ * Crea un generador aleatorio sembrable.
+ */
 function makeRng(seed) {
-  const f = mulberry32(seed >>> 0);
+  var state = (Number(seed) || 1) >>> 0;
+  if (state === 0) state = 1;
   return {
-    next: f,
-    int(maxExclusive) { return Math.floor(f() * maxExclusive); },
-    shuffle(arr) {
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(f() * (i + 1));
-        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    /** Número pseudoaleatorio en [0, 1). */
+    next: function () {
+      state |= 0;
+      state = (state + 0x6D2B79F5) | 0;
+      var t = Math.imul(state ^ (state >>> 15), 1 | state);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+    /** Entero en [0, n). */
+    int: function (n) {
+      return Math.floor(this.next() * n);
+    },
+    /** Copia mezclada (Fisher-Yates) usando este RNG. */
+    shuffled: function (values) {
+      var arr = values.slice();
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = this.int(i + 1);
+        var tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
       }
       return arr;
-    },
+    }
   };
 }
 
-/* ---------------- Niveles y técnicas ---------------- */
-const LEVELS = {
-  facil:   { name: 'Fácil',   clues: [36, 42] },
-  medio:   { name: 'Medio',   clues: [30, 36] },
-  dificil: { name: 'Difícil', clues: [26, 31] },
-  experto: { name: 'Experto', clues: [22, 27] },
-};
-const LEVEL_ORDER = ['facil', 'medio', 'dificil', 'experto'];
-const MAX_TIPS = 3;
+// === SOLVER / ORÁCULO DE UNICIDAD ===
+// Backtracking con propagación de singles desnudos y heurística MRV sobre
+// máscaras de bits. Cuenta soluciones deteniéndose en `cap` (por defecto 2:
+// basta distinguir 0 / 1 / "2 o más"). NO se usa para autocompletar la partida.
 
-/* Repertorio de técnicas, de más fácil a más difícil (step = dificultad). */
-const TECH_LIST = [
-  ['full_house',        'Full House (último valor libre de una unidad)',      1],
-  ['naked_single',      'Single desnudo (única candidata)',                   2],
-  ['hidden_single',     'Single oculto',                                      3],
-  ['locked_candidates', 'Candidatas bloqueadas (pointing / claiming)',        4],
-  ['naked_pair',        'Par desnudo',                                        5],
-  ['hidden_pair',       'Par oculto',                                         6],
-  ['naked_triple',      'Trío desnudo',                                       7],
-  ['hidden_triple',     'Trío oculto',                                        8],
-  ['x_wing',            'X-Wing',                                             9],
-  ['naked_quad',        'Cuádruple desnudo',                                 10],
-  ['hidden_quad',       'Cuádruple oculto',                                  11],
-  ['swordfish',         'Swordfish',                                         12],
-  ['xy_wing',           'XY-Wing',                                           13],
-  ['xyz_wing',          'XYZ-Wing',                                          14],
-];
-const TECH_BY_ID = {};
-for (const [id, name, step] of TECH_LIST) TECH_BY_ID[id] = { id, name, step };
+var NMASK = 511; // 9 bits: candidatos 1-9.
 
-/* Techo de técnicas por nivel: un puzzle de nivel L se resuelve COMPLETO,
- * sin adivinar, usando solo técnicas de su lista (y por tanto técnicas más
- * fáciles). El gradador asigna el nivel más bajo cuyo techo basta. */
-const LEVEL_TECHS = {
-  facil:   TECH_LIST.slice(0, 3).map((t) => t[0]),
-  medio:   TECH_LIST.slice(0, 6).map((t) => t[0]),
-  dificil: TECH_LIST.slice(0, 9).map((t) => t[0]),
-  experto: TECH_LIST.slice(0, 14).map((t) => t[0]),
-};
-/* Banda de técnicas de cada nivel: [step mínimo, step máximo].
- * - El TECHO es una garantía dura: el puzzle SIEMPRE se resuelve, sin adivinar,
- *   con las técnicas de la lista del nivel (rating.step <= HI).
- * - El SUELO (LO) lo persigue el generador con reintentos y reparación voraz;
- *   si una semilla es terca, se sirve el mejor candidato y el overlay muestra
- *   siempre el rating real. Separación honesta entre niveles.
- *   facil: solo singles · medio: pares/locked · dificil: hasta X-Wing ·
- *   experto: repertorio completo. */
-const LEVEL_BAND = { facil: [1, 3], medio: [3, 6], dificil: [5, 9], experto: [7, 14] };
+function rowOf(i) { return (i / 9) | 0; }
+function colOf(i) { return i % 9; }
+function boxOf(i) { return (((i / 9) | 0) / 3 | 0) * 3 + (((i % 9) / 3) | 0); }
 
-function levelName(key) { return (LEVELS[key] || { name: key }).name; }
-
-/* ---------------- Topología del tablero ---------------- */
-const ROW_OF = new Uint8Array(81), COL_OF = new Uint8Array(81), BOX_OF = new Uint8Array(81);
-const PEERS = [];       // PEERS[i] = array con las 20 celdas que ven a i
-const PEER_FLAG = [];   // PEER_FLAG[i][j] = 1 si j ve a i
-const UNITS_ALL = [];   // 27 unidades: 9 filas, 9 columnas, 9 cajas
-(function initTopology() {
-  for (let i = 0; i < 81; i++) {
-    const r = Math.floor(i / 9), c = i % 9;
-    ROW_OF[i] = r; COL_OF[i] = c; BOX_OF[i] = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-  }
-  for (let r = 0; r < 9; r++) { const u = []; for (let c = 0; c < 9; c++) u.push(r * 9 + c); UNITS_ALL.push(u); }
-  for (let c = 0; c < 9; c++) { const u = []; for (let r = 0; r < 9; r++) u.push(r * 9 + c); UNITS_ALL.push(u); }
-  for (let b = 0; b < 9; b++) {
-    const u = [];
-    const r0 = Math.floor(b / 3) * 3, c0 = (b % 3) * 3;
-    for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) u.push((r0 + dr) * 9 + c0 + dc);
-    UNITS_ALL.push(u);
-  }
-  for (let i = 0; i < 81; i++) {
-    const peers = [];
-    const flag = new Uint8Array(81);
-    for (let j = 0; j < 81; j++) {
-      if (j !== i && (ROW_OF[j] === ROW_OF[i] || COL_OF[j] === COL_OF[i] || BOX_OF[j] === BOX_OF[i])) {
-        peers.push(j); flag[j] = 1;
-      }
-    }
-    PEERS.push(peers); PEER_FLAG.push(flag);
-  }
-})();
-
-/* ---------------- Solver: propagación + backtracking (MRV) ----------------
- * Estado d: { cands: Uint16Array(81) máscara de bits 1..9, count: Uint8Array,
- *             val: Uint8Array (0 = sin fijar) }
- * Invariante: si val[i] != 0 entonces cands[i] === 1 << val[i].
- */
-function solverInit(grid) {
-  const cands = new Uint16Array(81);
-  const count = new Uint8Array(81);
-  const val = new Uint8Array(81);
-  for (let i = 0; i < 81; i++) {
-    const v = grid[i];
-    if (v >= 1 && v <= 9) { cands[i] = 1 << v; count[i] = 1; val[i] = v; }
-    else { cands[i] = 0x3FE; count[i] = 9; val[i] = 0; }
-  }
-  return { cands, count, val };
+/** Índice (0-8) del único bit activo. */
+function bitIndex(bit) {
+  var i = 0;
+  while ((bit >>= 1) > 0) i++;
+  return i;
 }
 
-function popcount(x) {
-  let n = 0;
-  while (x) { x &= x - 1; n++; }
+/** Nº de bits activos (popcount). */
+function popcount(m) {
+  var n = 0;
+  while (m > 0) { m &= m - 1; n++; }
   return n;
 }
-function bitIndex(mask) { // devuelve el bit 1..9 activo (mask debe tener un solo bit)
-  for (let v = 1; v <= 9; v++) if ((mask >> v) & 1) return v;
-  return 0;
-}
-function candVals(d, i) {
-  const out = [];
-  const m = d.cands[i];
-  for (let v = 1; v <= 9; v++) if ((m >> v) & 1) out.push(v);
-  return out;
+
+/**
+ * Inicializa las máscaras de dígitos usados desde una cuadrícula.
+ * Devuelve null si la cuadrícula ya trae conflictos.
+ */
+function initMasks(cells) {
+  var rowM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var colM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var boxM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (var i = 0; i < 81; i++) {
+    var v = cells[i];
+    if (v === 0) continue;
+    var bit = 1 << (v - 1);
+    var r = rowOf(i), c = colOf(i), b = boxOf(i);
+    if ((rowM[r] & bit) || (colM[c] & bit) || (boxM[b] & bit)) return null;
+    rowM[r] |= bit;
+    colM[c] |= bit;
+    boxM[b] |= bit;
+  }
+  return { rowM: rowM, colM: colM, boxM: boxM };
 }
 
-/* Elimina `bit` de las candidatas de `cell`; propaga en cascada los singles.
- * Devuelve false en caso de contradicción. */
-function eliminate(d, cell, bit) {
-  if (!(d.cands[cell] & bit)) return true;
-  d.cands[cell] &= ~bit;
-  if (d.cands[cell] === 0) return false;
-  const c = popcount(d.cands[cell]);
-  d.count[cell] = c;
-  if (c === 1 && !d.val[cell]) {
-    const v = bitIndex(d.cands[cell]);
-    d.val[cell] = v;
-    for (let k = 0; k < 20; k++) {
-      if (!eliminate(d, PEERS[cell][k], 1 << v)) return false;
+/**
+ * Cuenta las soluciones de la cuadrícula hasta `cap` (defecto 2).
+ * Cuadrícula: array de 81 (0 = vacía). No modifica la entrada.
+ */
+function countSolutions(cells, cap) {
+  var max = cap || 2;
+  var work = cells.slice();
+  var masks = initMasks(work);
+  if (masks === null) return 0;
+  var total = 0;
+
+  function place(i, bit) {
+    work[i] = bitIndex(bit) + 1;
+    masks.rowM[rowOf(i)] |= bit;
+    masks.colM[colOf(i)] |= bit;
+    masks.boxM[boxOf(i)] |= bit;
+  }
+
+  function search() {
+    if (total >= max) return;
+    // Propagación: coloca singles desnudos hasta punto fijo.
+    for (;;) {
+      var progress = false;
+      for (var i = 0; i < 81; i++) {
+        if (work[i] !== 0) continue;
+        var m = ~(masks.rowM[rowOf(i)] | masks.colM[colOf(i)] | masks.boxM[boxOf(i)]) & NMASK;
+        if (m === 0) return; // Contradicción: esta rama no vale.
+        if ((m & (m - 1)) === 0) {
+          place(i, m);
+          progress = true;
+        }
+      }
+      if (!progress) break;
     }
-  }
-  return true;
-}
-
-/* Fija v en cell y elimina v de todos sus pares. false = contradicción. */
-function assign(d, cell, v) {
-  const bit = 1 << v;
-  if (!(d.cands[cell] & bit)) return false;
-  d.cands[cell] = bit;
-  d.count[cell] = 1;
-  d.val[cell] = v;
-  for (let k = 0; k < 20; k++) {
-    if (!eliminate(d, PEERS[cell][k], bit)) return false;
-  }
-  return true;
-}
-
-/* Estado propagado a partir de un grid (givens + valores). null = inválido. */
-function solverStateFor(grid) {
-  const d = solverInit(grid);
-  for (let i = 0; i < 81; i++) {
-    const v = grid[i];
-    if (v >= 1 && v <= 9) {
-      for (let k = 0; k < 20; k++) {
-        if (!eliminate(d, PEERS[i][k], 1 << v)) return null;
+    // MRV: celda vacía con menos candidatos.
+    var best = -1, bestM = 0, bestN = 10;
+    for (var j = 0; j < 81; j++) {
+      if (work[j] !== 0) continue;
+      var cm = ~(masks.rowM[rowOf(j)] | masks.colM[colOf(j)] | masks.boxM[boxOf(j)]) & NMASK;
+      var cn = popcount(cm);
+      if (cn < bestN) {
+        bestN = cn;
+        best = j;
+        bestM = cm;
+        if (cn === 2) break;
       }
     }
-  }
-  return d;
-}
-
-/* Cuenta soluciones hasta `limit`; devuelve 0..limit, o -1 si agota el presupuesto. */
-function searchSolutions(d, limit, budget) {
-  if (budget && --budget.nodes < 0) return 'budget';
-  let best = -1, bestCount = 10;
-  for (let i = 0; i < 81; i++) {
-    if (d.val[i]) continue;
-    if (d.count[i] < bestCount) {
-      bestCount = d.count[i]; best = i;
-      if (bestCount === 2) break;
+    if (best === -1) {
+      total++;
+      return;
+    }
+    // Ramifica probando cada candidato (copia el estado).
+    var rest = bestM;
+    while (rest !== 0 && total < max) {
+      var bit = rest & -rest;
+      rest ^= bit;
+      var savedCells = work.slice();
+      var savedRow = masks.rowM.slice();
+      var savedCol = masks.colM.slice();
+      var savedBox = masks.boxM.slice();
+      place(best, bit);
+      search();
+      work = savedCells;
+      masks.rowM = savedRow;
+      masks.colM = savedCol;
+      masks.boxM = savedBox;
     }
   }
-  if (best === -1) return 1; // tablero completo: 1 solución hallada
-  let solutions = 0;
-  const vals = candVals(d, best);
-  for (const v of vals) {
-    const candsCopy = d.cands.slice(), countCopy = d.count.slice(), valCopy = d.val.slice();
-    if (assign(d, best, v)) {
-      const r = searchSolutions(d, limit - solutions, budget);
-      if (r === 'budget') return 'budget';
-      solutions += r;
-    }
-    d.cands = candsCopy; d.count = countCopy; d.val = valCopy;
-    if (solutions >= limit) return solutions;
-  }
-  return solutions;
+
+  search();
+  return total;
 }
 
-/* Oráculo de unicidad: countSolutions(puzzle, 2) === 1  ⇔  solución única. */
-function countSolutions(grid, limit, maxNodes) {
-  const d0 = solverStateFor(grid);
-  if (!d0) return 0;
-  const budget = maxNodes ? { nodes: maxNodes } : null;
-  const r = searchSolutions(d0, limit, budget);
-  return r === 'budget' ? -1 : r;
-}
+/**
+ * Rellena una cuadrícula completa válida usando el RNG dado.
+ * Devuelve array de 81 con valores 1-9.
+ */
+function fillGrid(rng) {
+  var cells = new Array(81).fill(0);
+  var rowM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var colM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var boxM = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-/* ---------------- Generador ---------------- */
-
-/* Solución completa y válida generada con el RNG sembrado (determinista). */
-function generateSolvedGrid(rng) {
-  const d = solverInit(new Uint8Array(81));
-  function fill() {
-    let best = -1, bestCount = 10;
-    for (let i = 0; i < 81; i++) {
-      if (d.val[i]) continue;
-      if (d.count[i] < bestCount) {
-        bestCount = d.count[i]; best = i;
-        if (bestCount === 2) break;
+  function search() {
+    var best = -1, bestM = 0, bestN = 10;
+    for (var i = 0; i < 81; i++) {
+      if (cells[i] !== 0) continue;
+      var m = ~(rowM[rowOf(i)] | colM[colOf(i)] | boxM[boxOf(i)]) & NMASK;
+      var n = popcount(m);
+      if (n === 0) return false;
+      if (n < bestN) {
+        bestN = n;
+        best = i;
+        bestM = m;
+        if (n === 1) break;
       }
     }
     if (best === -1) return true;
-    const vals = candVals(d, best);
-    rng.shuffle(vals);
-    for (const v of vals) {
-      const candsCopy = d.cands.slice(), countCopy = d.count.slice(), valCopy = d.val.slice();
-      if (assign(d, best, v) && fill()) return true;
-      d.cands = candsCopy; d.count = countCopy; d.val = valCopy;
+    var bits = [];
+    var rest = bestM;
+    while (rest !== 0) {
+      var b = rest & -rest;
+      rest ^= b;
+      bits.push(b);
+    }
+    bits = rng.shuffled(bits);
+    for (var k = 0; k < bits.length; k++) {
+      cells[best] = bitIndex(bits[k]) + 1;
+      rowM[rowOf(best)] |= bits[k];
+      colM[colOf(best)] |= bits[k];
+      boxM[boxOf(best)] |= bits[k];
+      if (search()) return true;
+      cells[best] = 0;
+      rowM[rowOf(best)] &= ~bits[k];
+      colM[colOf(best)] &= ~bits[k];
+      boxM[boxOf(best)] &= ~bits[k];
     }
     return false;
   }
-  if (!fill()) throw new Error('generación de solución fallida');
-  return d.val.slice();
+
+  search();
+  return cells;
 }
 
-/* Perforado con unicidad garantizada EN TODO MOMENTO y techo de técnicas.
- * probeHole SONDEA un hueco (siempre restaura la celda) y devuelve el step
- * de la técnica más difícil del grid resultado, o null si el hueco rompe la
- * unicidad o la resolubilidad lógica dentro del techo del nivel.
- *
- * FASE 1: perforar hasta el objetivo de pistas del nivel.
- * FASE 2 (solo si la dificultad quedó por debajo de la banda del nivel):
- *   seguir profundizando (hasta FLOOR_CLUES pistas) para elevar el rating.
- * La dificultad del puzzle final se mide SIEMPRE con el gradador; generatePuzzle
- * la verifica y reintenta con semillas derivadas si hiciera falta.
- * 100% determinista: sin Date.now ni Math.random. */
-function digHolesForLevel(solution, rng, targetClues, ceilingIds, band) {
-  const LO = band[0], HI = band[1];
-  const puzzle = solution.slice();
-  let clues = 81;
-  let hardestStep = 1;
-  const FLOOR_CLUES = 21; // no quitar pistas nunca por debajo de aquí
-  const MAX_PASSES = 12;
-  const stepOf = (r) => r.step || 0;
+/**
+ * Resuelve con orden determinista (sin azar). Solo para tests.
+ */
+function solveFirst(cells) {
+  var work = cells.slice();
+  var masks = initMasks(work);
+  if (masks === null) return null;
+  function search() {
+    var best = -1, bestM = 0, bestN = 10;
+    for (var i = 0; i < 81; i++) {
+      if (work[i] !== 0) continue;
+      var m = ~(masks.rowM[rowOf(i)] | masks.colM[colOf(i)] | masks.boxM[boxOf(i)]) & NMASK;
+      var n = popcount(m);
+      if (n === 0) return false;
+      if (n < bestN) { bestN = n; best = i; bestM = m; if (n === 1) break; }
+    }
+    if (best === -1) return true;
+    for (var b = 1; b <= 256; b <<= 1) {
+      if (!(bestM & b)) continue;
+      work[best] = bitIndex(b) + 1;
+      masks.rowM[rowOf(best)] |= b;
+      masks.colM[colOf(best)] |= b;
+      masks.boxM[boxOf(best)] |= b;
+      if (search()) return true;
+      work[best] = 0;
+      masks.rowM[rowOf(best)] &= ~b;
+      masks.colM[colOf(best)] &= ~b;
+      masks.boxM[boxOf(best)] &= ~b;
+    }
+    return false;
+  }
+  return search() ? work : null;
+}
 
-  const probeHole = function (idx) {
-    const backup = puzzle[idx];
+// === LÓGICA DEDUCTIVA (técnicas sin adivinar) ===
+// Unidades: 27 grupos de 9 índices (filas, columnas, cajas).
+
+var UNITS = (function () {
+  var units = [];
+  var r, c, i;
+  for (r = 0; r < 9; r++) {
+    var row = [];
+    for (c = 0; c < 9; c++) row.push(r * 9 + c);
+    units.push(row);
+  }
+  for (c = 0; c < 9; c++) {
+    var col = [];
+    for (r = 0; r < 9; r++) col.push(r * 9 + c);
+    units.push(col);
+  }
+  for (var br = 0; br < 3; br++) {
+    for (var bc = 0; bc < 3; bc++) {
+      var box = [];
+      for (r = 0; r < 3; r++) {
+        for (c = 0; c < 3; c++) box.push((br * 3 + r) * 9 + (bc * 3 + c));
+      }
+      units.push(box);
+    }
+  }
+  return units;
+})();
+
+// Niveles de técnica (menor = más básica).
+var TIER_NAKED_SINGLE = 1;
+var TIER_HIDDEN_SINGLE = 2;
+var TIER_NAKED_PAIR = 3;
+var TIER_HIDDEN_PAIR = 4;
+var TIER_POINTING = 5;
+var TIER_NAKED_TRIPLE = 6;
+var TIER_XWING = 7;
+
+var TECH_NAMES = {
+  1: 'Single desnudo',
+  2: 'Single oculto',
+  3: 'Pareja desnuda',
+  4: 'Pareja oculta',
+  5: 'Apuntado (box-line)',
+  6: 'Trío desnudo',
+  7: 'X-Wing'
+};
+
+/**
+ * Candidatos (máscara de bits) de cada celda según los valores actuales.
+ */
+function computeCandidates(values) {
+  var masks = initMasks(values);
+  var cands = new Array(81);
+  for (var i = 0; i < 81; i++) {
+    if (values[i] !== 0) {
+      cands[i] = 0;
+    } else if (masks === null) {
+      cands[i] = NMASK;
+    } else {
+      cands[i] = ~(masks.rowM[rowOf(i)] | masks.colM[colOf(i)] | masks.boxM[boxOf(i)]) & NMASK;
+    }
+  }
+  return cands;
+}
+
+/**
+ * Busca el primer paso deductivo aplicable (sin adivinar) en orden de
+ * dificultad creciente. Devuelve { tier, placements, eliminations } o null.
+ * placements: [{ idx, val }]. eliminations: [{ idx, mask }].
+ */
+function findLogicalStep(values, cands) {
+  var u, i, d, bit;
+  // Tier 1: single desnudo (celda con un solo candidato).
+  for (i = 0; i < 81; i++) {
+    if (values[i] === 0 && cands[i] !== 0 && (cands[i] & (cands[i] - 1)) === 0) {
+      return { tier: TIER_NAKED_SINGLE, placements: [{ idx: i, val: bitIndex(cands[i]) + 1 }], eliminations: [] };
+    }
+  }
+  // Tier 2: single oculto (dígito que solo cabe en una celda de la unidad).
+  for (u = 0; u < 27; u++) {
+    for (d = 1; d <= 9; d++) {
+      bit = 1 << (d - 1);
+      var count = 0, where = -1, filled = false;
+      for (i = 0; i < 9; i++) {
+        var idx = UNITS[u][i];
+        if (values[idx] === d) { filled = true; break; }
+        if (values[idx] === 0 && (cands[idx] & bit)) { count++; where = idx; }
+      }
+      if (!filled && count === 1) {
+        return { tier: TIER_HIDDEN_SINGLE, placements: [{ idx: where, val: d }], eliminations: [] };
+      }
+    }
+  }
+  // Tier 3: pareja desnuda (dos celdas con los mismos 2 candidatos).
+  for (u = 0; u < 27; u++) {
+    for (i = 0; i < 9; i++) {
+      var a = UNITS[u][i];
+      if (values[a] !== 0 || popcount(cands[a]) !== 2) continue;
+      for (var j = i + 1; j < 9; j++) {
+        var b = UNITS[u][j];
+        if (values[b] !== 0 || cands[b] !== cands[a]) continue;
+        var elims = [];
+        for (var k = 0; k < 9; k++) {
+          var o = UNITS[u][k];
+          if (o === a || o === b || values[o] !== 0) continue;
+          if (cands[o] & cands[a]) elims.push({ idx: o, mask: cands[a] });
+        }
+        if (elims.length > 0) {
+          return { tier: TIER_NAKED_PAIR, placements: [], eliminations: elims };
+        }
+      }
+    }
+  }
+  // Tier 4: pareja oculta (dos dígitos que solo caben en las mismas 2 celdas).
+  for (u = 0; u < 27; u++) {
+    for (var d1 = 1; d1 <= 9; d1++) {
+      for (var d2 = d1 + 1; d2 <= 9; d2++) {
+        var cells12 = [];
+        for (i = 0; i < 9; i++) {
+          var q = UNITS[u][i];
+          if (values[q] !== 0) continue;
+          if ((cands[q] & ((1 << (d1 - 1)) | (1 << (d2 - 1)))) !== 0) cells12.push(q);
+          if (cells12.length > 2) break;
+        }
+        if (cells12.length !== 2) continue;
+        var keep = (1 << (d1 - 1)) | (1 << (d2 - 1));
+        var p = cells12[0], qq = cells12[1];
+        // Ambos dígitos deben aparecer al menos una vez entre las dos celdas.
+        if (!(cands[p] & (1 << (d1 - 1))) && !(cands[qq] & (1 << (d1 - 1)))) continue;
+        if (!(cands[p] & (1 << (d2 - 1))) && !(cands[qq] & (1 << (d2 - 1)))) continue;
+        var drop = [];
+        if (cands[p] & ~keep) drop.push({ idx: p, mask: cands[p] & ~keep });
+        if (cands[qq] & ~keep) drop.push({ idx: qq, mask: cands[qq] & ~keep });
+        if (drop.length > 0) {
+          return { tier: TIER_HIDDEN_PAIR, placements: [], eliminations: drop };
+        }
+      }
+    }
+  }
+  // Tier 5: apuntado (en una caja, un dígito confinado a una fila/columna
+  // elimina ese dígito del resto de la fila/columna fuera de la caja).
+  for (var bx = 18; bx < 27; bx++) {
+    var box = UNITS[bx];
+    for (d = 1; d <= 9; d++) {
+      bit = 1 << (d - 1);
+      var spots = [];
+      for (i = 0; i < 9; i++) {
+        if (values[box[i]] === 0 && (cands[box[i]] & bit)) spots.push(box[i]);
+      }
+      if (spots.length < 2) continue;
+      // Misma fila.
+      var rr = rowOf(spots[0]);
+      var sameRow = spots.every(function (s) { return rowOf(s) === rr; });
+      if (sameRow) {
+        var cut = [];
+        for (var c = 0; c < 9; c++) {
+          var t = rr * 9 + c;
+          if (box.indexOf(t) === -1 && values[t] === 0 && (cands[t] & bit)) {
+            cut.push({ idx: t, mask: bit });
+          }
+        }
+        if (cut.length > 0) {
+          return { tier: TIER_POINTING, placements: [], eliminations: cut };
+        }
+      }
+      // Misma columna.
+      var cc = colOf(spots[0]);
+      var sameCol = spots.every(function (s) { return colOf(s) === cc; });
+      if (sameCol) {
+        var cutC = [];
+        for (var r2 = 0; r2 < 9; r2++) {
+          var t2 = r2 * 9 + cc;
+          if (box.indexOf(t2) === -1 && values[t2] === 0 && (cands[t2] & bit)) {
+            cutC.push({ idx: t2, mask: bit });
+          }
+        }
+        if (cutC.length > 0) {
+          return { tier: TIER_POINTING, placements: [], eliminations: cutC };
+        }
+      }
+    }
+  }
+  // Tier 6: trío desnudo (tres celdas cuya unión es exactamente 3 dígitos).
+  for (u = 0; u < 27; u++) {
+    var empties = [];
+    for (i = 0; i < 9; i++) {
+      var e = UNITS[u][i];
+      if (values[e] === 0 && cands[e] !== 0) empties.push(e);
+    }
+    for (var a3 = 0; a3 < empties.length; a3++) {
+      for (var b3 = a3 + 1; b3 < empties.length; b3++) {
+        for (var c3 = b3 + 1; c3 < empties.length; c3++) {
+          var union = cands[empties[a3]] | cands[empties[b3]] | cands[empties[c3]];
+          if (popcount(union) !== 3) continue;
+          var trim = [];
+          for (var k3 = 0; k3 < 9; k3++) {
+            var o3 = UNITS[u][k3];
+            if (o3 === empties[a3] || o3 === empties[b3] || o3 === empties[c3]) continue;
+            if (values[o3] !== 0) continue;
+            if (cands[o3] & union) trim.push({ idx: o3, mask: union });
+          }
+          if (trim.length > 0) {
+            return { tier: TIER_NAKED_TRIPLE, placements: [], eliminations: trim };
+          }
+        }
+      }
+    }
+  }
+  // Tier 7: X-Wing por filas y por columnas.
+  for (d = 1; d <= 9; d++) {
+    bit = 1 << (d - 1);
+    var rowPairs = [];
+    for (var rw = 0; rw < 9; rw++) {
+      var colsHit = [];
+      for (var cl = 0; cl < 9; cl++) {
+        var w = rw * 9 + cl;
+        if (values[w] === 0 && (cands[w] & bit)) colsHit.push(cl);
+      }
+      if (colsHit.length === 2) rowPairs.push({ line: rw, spans: colsHit });
+    }
+    for (var p1 = 0; p1 < rowPairs.length; p1++) {
+      for (var p2 = p1 + 1; p2 < rowPairs.length; p2++) {
+        if (rowPairs[p1].spans[0] !== rowPairs[p2].spans[0] ||
+            rowPairs[p1].spans[1] !== rowPairs[p2].spans[1]) continue;
+        var wing = [];
+        for (var rw2 = 0; rw2 < 9; rw2++) {
+          if (rw2 === rowPairs[p1].line || rw2 === rowPairs[p2].line) continue;
+          for (var s = 0; s < 2; s++) {
+            var w2 = rw2 * 9 + rowPairs[p1].spans[s];
+            if (values[w2] === 0 && (cands[w2] & bit)) wing.push({ idx: w2, mask: bit });
+          }
+        }
+        if (wing.length > 0) {
+          return { tier: TIER_XWING, placements: [], eliminations: wing };
+        }
+      }
+    }
+    var colPairs = [];
+    for (var cl2 = 0; cl2 < 9; cl2++) {
+      var rowsHit = [];
+      for (var rw3 = 0; rw3 < 9; rw3++) {
+        var w3 = rw3 * 9 + cl2;
+        if (values[w3] === 0 && (cands[w3] & bit)) rowsHit.push(rw3);
+      }
+      if (rowsHit.length === 2) colPairs.push({ line: cl2, spans: rowsHit });
+    }
+    for (var q1 = 0; q1 < colPairs.length; q1++) {
+      for (var q2 = q1 + 1; q2 < colPairs.length; q2++) {
+        if (colPairs[q1].spans[0] !== colPairs[q2].spans[0] ||
+            colPairs[q1].spans[1] !== colPairs[q2].spans[1]) continue;
+        var wingC = [];
+        for (var cl3 = 0; cl3 < 9; cl3++) {
+          if (cl3 === colPairs[q1].line || cl3 === colPairs[q2].line) continue;
+          for (var s2 = 0; s2 < 2; s2++) {
+            var w4 = colPairs[q1].spans[s2] * 9 + cl3;
+            if (values[w4] === 0 && (cands[w4] & bit)) wingC.push({ idx: w4, mask: bit });
+          }
+        }
+        if (wingC.length > 0) {
+          return { tier: TIER_XWING, placements: [], eliminations: wingC };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Aplica un paso lógico a valores/candidatos.
+ */
+function applyLogicalStep(values, cands, step) {
+  var i, e;
+  for (i = 0; i < step.placements.length; i++) {
+    values[step.placements[i].idx] = step.placements[i].val;
+  }
+  // Tras colocar, los candidatos se recalculan fuera.
+  for (i = 0; i < step.eliminations.length; i++) {
+    e = step.eliminations[i];
+    cands[e.idx] &= ~e.mask;
+  }
+}
+
+/**
+ * Resuelve solo con deducción (máximo nivel maxTier). No adivina.
+ * Devuelve { solved, maxUsed }.
+ */
+function solveLogical(values, maxTier) {
+  var work = values.slice();
+  var cands = computeCandidates(work);
+  var maxUsed = 0;
+  for (;;) {
+    var complete = true;
+    for (var i = 0; i < 81; i++) {
+      if (work[i] === 0) { complete = false; break; }
+    }
+    if (complete) return { solved: true, maxUsed: maxUsed };
+    var step = findLogicalStep(work, cands);
+    if (step === null || step.tier > maxTier) return { solved: false, maxUsed: maxUsed };
+    if (step.tier > maxUsed) maxUsed = step.tier;
+    applyLogicalStep(work, cands, step);
+    if (step.placements.length > 0) {
+      // Al colocar valores, los candidatos se rederivan del tablero.
+      cands = computeCandidates(work);
+    }
+    // Las eliminaciones persisten en `cands`: cada vuelta reduce
+    // celdas vacías o bits candidatos, luego siempre termina.
+  }
+}
+
+/**
+ * Técnica más difícil necesaria para resolver el puzzle sin adivinar.
+ * Devuelve { tier, name }: tier 8 = requiere búsqueda.
+ */
+function hardestTechnique(values) {
+  var res = solveLogical(values, TIER_XWING);
+  if (res.solved) {
+    return { tier: res.maxUsed, name: TECH_NAMES[res.maxUsed] || 'Directo' };
+  }
+  return { tier: 8, name: 'Búsqueda (backtracking)' };
+}
+
+// === GENERADOR ===
+// 1) Cuadrícula-solución completa desde el RNG. 2) Perforado celda a celda:
+// una celda solo se retira si el puzzle resultante sigue teniendo EXACTAMENTE
+// 1 solución (oráculo countSolutions) y, salvo en experto, sigue resoluble
+// con las técnicas permitidas del nivel. Prohibido el banco de puzzles.
+
+var LEVELS = ['facil', 'medio', 'dificil', 'experto'];
+
+var LEVEL_CFG = {
+  facil: { minTier: 1, maxTier: TIER_HIDDEN_SINGLE, minClues: 36 },
+  medio: { minTier: 2, maxTier: TIER_HIDDEN_PAIR, minClues: 30 },
+  dificil: { minTier: 3, maxTier: TIER_XWING, minClues: 26 },
+  experto: { minTier: 5, maxTier: 8, minClues: 22 }
+};
+
+// Reintentos máximos para alcanzar la banda de dificultad (deterministas:
+// consumen el mismo RNG en secuencia; si se agotan, se entrega el mejor
+// intento, siempre con solución única).
+var MAX_GRADE_ATTEMPTS = 100;
+
+var LEVEL_LABEL = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto' };
+
+/**
+ * Genera un puzzle real a partir del RNG y el nivel.
+ * Devuelve { puzzle, solution, clues, grade } (arrays de 81).
+ */
+function digPuzzle(rng, cfg) {
+  var solution = fillGrid(rng);
+  var puzzle = solution.slice();
+  var clues = 81;
+  var order = rng.shuffled(
+    Array.apply(null, { length: 81 }).map(function (_, i) { return i; })
+  );
+  for (var k = 0; k < order.length; k++) {
+    if (clues <= cfg.minClues) break;
+    var idx = order[k];
+    var backup = puzzle[idx];
     puzzle[idx] = 0;
-    let step = null;
-    // 1) unicidad con el oráculo: si pasa a 2+ soluciones, el hueco es inválido
-    if (countSolutions(puzzle, 2, null) === 1) {
-      // 2) resolubilidad lógica dentro del techo del nivel (sin adivinar)
-      const g = gradeGrid(puzzle, ceilingIds);
-      if (g.solved) step = g.hardest ? g.hardest.step : 1;
+    // Unicidad: si deja de haber exactamente 1 solución, se restaura.
+    if (countSolutions(puzzle, 2) !== 1) {
+      puzzle[idx] = backup;
+      continue;
     }
-    puzzle[idx] = backup; // SIEMPRE restaura; el llamador decide si perfora
-    return step;
-  };
-
-  // FASE 1: perforar hasta el objetivo de pistas (acepta cualquier hueco
-  // que mantenga unicidad y resolubilidad dentro del techo del nivel)
-  for (let pass = 0; pass < MAX_PASSES; pass++) {
-    if (clues <= targetClues) break;
-    const filled = [];
-    for (let i = 0; i < 81; i++) if (puzzle[i] !== 0) filled.push(i);
-    rng.shuffle(filled);
-    let removed = 0;
-    for (const idx of filled) {
-      if (clues <= targetClues) break;
-      const step = probeHole(idx);
-      if (step === null) continue;
-      puzzle[idx] = 0;
-      clues--; removed++;
-      if (step > hardestStep) hardestStep = step;
+    // Graduación honesta: el nivel debe seguir resoluble con su lógica.
+    if (cfg.maxTier < 8 && !solveLogical(puzzle, cfg.maxTier).solved) {
+      puzzle[idx] = backup;
+      continue;
     }
-    if (removed === 0) break;
+    clues--;
   }
-
-  // FASE 2 (escalado a la banda): la dificultad final la mide ratePuzzle sobre
-  // el puzzle COMPLETO. Si quedó bajo la banda del nivel, aplica movimientos
-  // voraces (quitar o rellenar UNA celda) que SUBAN el rating medido, nunca
-  // por encima de la banda y sin romper unicidad ni resolubilidad. Proceso
-  // monotónico y acotado por ciclos: determinista.
-  if (LO > 1) {
-    let rating = ratePuzzle(puzzle);
-    for (let cycle = 0; cycle < 8 && stepOf(rating) < LO && stepOf(rating) < 99; cycle++) {
-      let moved = false;
-      // (a) QUITAR la pista cuyo hueco más sube el rating final
-      const filled = [];
-      for (let i = 0; i < 81; i++) if (puzzle[i] !== 0) filled.push(i);
-      rng.shuffle(filled);
-      let bestRem = null;
-      for (const idx of filled) {
-        if (clues <= FLOOR_CLUES) break;
-        const backup = puzzle[idx];
-        puzzle[idx] = 0;
-        if (countSolutions(puzzle, 2, null) === 1) {
-          const r = ratePuzzle(puzzle);
-          const s = stepOf(r);
-          if (s < 99 && s <= HI && (!bestRem || s > bestRem.step)) bestRem = { idx, step: s };
-        }
-        puzzle[idx] = backup;
-      }
-      if (bestRem && bestRem.step > stepOf(rating)) {
-        puzzle[bestRem.idx] = 0;
-        clues--;
-        rating = ratePuzzle(puzzle);
-        moved = true;
-      }
-      // (b) si quitar no ayuda, RELLENAR el hueco que más sube el rating
-      if (!moved) {
-        const holes = [];
-        for (let i = 0; i < 81; i++) if (puzzle[i] === 0) holes.push(i);
-        rng.shuffle(holes);
-        let bestFill = null;
-        for (const idx of holes) {
-          puzzle[idx] = solution[idx];
-          const r = ratePuzzle(puzzle);
-          puzzle[idx] = 0;
-          const s = stepOf(r);
-          if (s < 99 && s <= HI && (!bestFill || s > bestFill.step)) bestFill = { idx, step: s };
-        }
-        if (bestFill && bestFill.step > stepOf(rating)) {
-          puzzle[bestFill.idx] = solution[bestFill.idx];
-          clues++;
-          rating = ratePuzzle(puzzle);
-          moved = true;
-        }
-      }
-      if (!moved) break;
-    }
-  }
-  return { puzzle, clues, hardestStep };
+  return { puzzle: puzzle, solution: solution, clues: clues };
 }
 
-/* Pipeline completo: semilla + nivel => { solution, puzzle, clues, solutions }.
- * Verificación final explícita: el puzzle servido debe tener EXACTAMENTE 1 solución. */
-function generatePuzzle(seed, level) {
-  const lv = LEVELS[level] ? level : 'facil';
-  let fallback = null;
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const rng = makeRng((seed + Math.imul(attempt, 0x9E3779B9)) >>> 0);
-    const solution = generateSolvedGrid(rng);
-    // objetivos de pistas variables por intento: si un intento no alcanza la
-    // banda del nivel, el siguiente prueba más hondo o más suave de forma determinista
-    const targets = [LEVELS[lv].clues[0], LEVELS[lv].clues[1], 23, 22];
-    const target = targets[Math.min(attempt, 3)];
-    const dug = digHolesForLevel(solution, rng, target, LEVEL_TECHS[lv], LEVEL_BAND[lv]);
-    if (countSolutions(dug.puzzle, 2, null) !== 1) continue; // no debería ocurrir nunca
-    // Gradación honesta: el puzzle servido debe puntuar en el nivel pedido
-    const rating = ratePuzzle(dug.puzzle);
-    const cand = { solution, puzzle: dug.puzzle, clues: dug.clues, solutions: 1, rating };
-    if (rating.level === lv) return cand;
-    if (!fallback || (rating.step || 0) > (fallback.rating.step || 0)) fallback = cand;
-    // reintenta de forma determinista con una semilla derivada
+/**
+ * Genera un puzzle real a partir del RNG y el nivel.
+ * Reintenta (determinista) hasta que la técnica requerida cae en la banda
+ * [minTier, maxTier] del nivel. Devuelve { puzzle, solution, clues, grade }.
+ */
+function generatePuzzle(rng, level) {
+  if (LEVELS.indexOf(level) === -1) throw new Error('Nivel desconocido: ' + level);
+  var cfg = LEVEL_CFG[level];
+  var best = null;
+  for (var attempt = 0; attempt < MAX_GRADE_ATTEMPTS; attempt++) {
+    var dug = digPuzzle(rng, cfg);
+    var grade = hardestTechnique(dug.puzzle);
+    var cand = { puzzle: dug.puzzle, solution: dug.solution, clues: dug.clues, grade: grade, level: level };
+    if (grade.tier >= cfg.minTier) return cand;
+    if (best === null || grade.tier > best.grade.tier) best = cand;
   }
-  if (fallback) return fallback; // único y lógico, con el nivel real indicado en el overlay
-  throw new Error('generación de puzzle fallida (semilla ' + seed + ')');
+  return best;
 }
 
-/* ---------------- Técnicas lógicas (operan sobre el estado del solver) ---- */
-
-function combinations(arr, k) {
-  const res = [];
-  const cur = [];
-  (function rec(start) {
-    if (cur.length === k) { res.push(cur.slice()); return; }
-    for (let i = start; i < arr.length; i++) { cur.push(arr[i]); rec(i + 1); cur.pop(); }
-  })(0);
-  return res;
+/**
+ * Nº de pistas (celdas distintas de cero).
+ */
+function countClues(cells) {
+  var n = 0;
+  for (var i = 0; i < 81; i++) {
+    if (cells[i] !== 0) n++;
+  }
+  return n;
 }
 
-function techFullHouse(d, log) {
-  for (const unit of UNITS_ALL) {
-    let empty = -1, n = 0, missingMask = 0;
-    for (const i of unit) {
-      if (d.val[i]) missingMask |= 1 << d.val[i];
-      else { n++; empty = i; }
-    }
-    if (n === 1) {
-      const v = bitIndex(0x3FE & ~missingMask);
-      if (v && assign(d, empty, v)) {
-        if (log) log.push({ type: 'place', cell: empty, value: v, tech: 'full_house' });
-        return true;
+// === ESTADO ===
+// Tableros como arrays de 81 (0 = vacía). `puzzle` son las pistas iniciales
+// (inmutables); `solution` la solución; `board` los valores actuales;
+// `notes` máscaras de candidatos de lápiz; `hinted` celdas de pista (fijas).
+
+var puzzle = null;
+var solution = null;
+var board = null;
+var notes = null;
+var hinted = null;
+var level = 'medio';
+var seed = 1;
+var grade = null;
+var selected = -1;
+var notesMode = false;
+var checkMode = true;
+var errors = 0;
+var hintsUsed = 0;
+var HINTS_MAX = 3;
+var undoStack = [];
+var redoStack = [];
+var status = 'start'; // start | playing | paused | solved
+var elapsedMs = 0;
+var lastTick = 0;
+var timerId = null;
+var bests = { facil: null, medio: null, dificil: null, experto: null };
+var muted = false;
+var audioCtx = null;
+
+var boardEl = null, padEl = null, timerEl = null, errorsEl = null;
+var hintsEl = null, bestEl = null, messageEl = null, levelNameEl = null;
+var cellEls = [];
+var padButtons = [];
+
+// === UI ===
+
+/** Formatea milisegundos como mm:ss. */
+function formatTime(ms) {
+  var s = Math.floor(ms / 1000);
+  var m = Math.floor(s / 60);
+  s = s % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+function showMessage(text, kind) {
+  messageEl.textContent = text;
+  messageEl.className = 'message' + (kind ? ' ' + kind : '');
+}
+
+/** Índices con el mismo valor repetido en su fila, columna o caja. */
+function findValueConflicts(values) {
+  var bad = {};
+  function scan(cells) {
+    var seen = {};
+    for (var i = 0; i < cells.length; i++) {
+      var v = values[cells[i]];
+      if (v === 0) continue;
+      if (seen[v] !== undefined) {
+        bad[cells[i]] = true;
+        bad[seen[v]] = true;
+      } else {
+        seen[v] = cells[i];
       }
-      return false;
+    }
+  }
+  for (var u = 0; u < 27; u++) scan(UNITS[u]);
+  return bad;
+}
+
+/** true si poner val en idx duplica un valor ya presente. */
+function placementConflicts(values, idx, val) {
+  var r = rowOf(idx), c = colOf(idx);
+  for (var k = 0; k < 9; k++) {
+    if (values[r * 9 + k] === val || values[k * 9 + c] === val) return true;
+  }
+  var br = (r / 3 | 0) * 3, bc = (c / 3 | 0) * 3;
+  for (var dr = 0; dr < 3; dr++) {
+    for (var dc = 0; dc < 3; dc++) {
+      if (values[(br + dr) * 9 + (bc + dc)] === val) return true;
     }
   }
   return false;
 }
 
-function techNakedSingle(d, log) {
-  for (let i = 0; i < 81; i++) {
-    if (!d.val[i] && popcount(d.cands[i]) === 1) {
-      const v = bitIndex(d.cands[i]);
-      if (assign(d, i, v)) {
-        if (log) log.push({ type: 'place', cell: i, value: v, tech: 'naked_single' });
-        return true;
-      }
-      return false;
+function isGiven(idx) { return puzzle[idx] !== 0; }
+function isLocked(idx) { return isGiven(idx) || hinted[idx]; }
+
+function buildBoard() {
+  boardEl.innerHTML = '';
+  cellEls = [];
+  for (var i = 0; i < 81; i++) {
+    (function (idx) {
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.addEventListener('click', function () {
+        if (status !== 'playing') return;
+        selected = idx;
+        renderBoard();
+      });
+      boardEl.appendChild(cell);
+      cellEls.push(cell);
+    })(i);
+  }
+}
+
+function buildPad() {
+  padEl.innerHTML = '';
+  padButtons = [];
+  for (var n = 1; n <= 9; n++) {
+    (function (num) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.addEventListener('click', function () { handleNumberInput(num); });
+      padEl.appendChild(btn);
+      padButtons.push(btn);
+    })(n);
+  }
+  var erase = document.createElement('button');
+  erase.type = 'button';
+  erase.textContent = 'Borrar';
+  erase.addEventListener('click', function () { eraseSelected(); });
+  padEl.appendChild(erase);
+}
+
+function renderNotes(el, mask) {
+  var html = '<span class="notes">';
+  for (var n = 1; n <= 9; n++) {
+    html += '<span>' + ((mask & (1 << (n - 1))) ? n : '') + '</span>';
+  }
+  el.innerHTML = html + '</span>';
+}
+
+function renderBoard() {
+  var conflicts = checkMode ? findValueConflicts(board) : {};
+  var selVal = selected >= 0 ? board[selected] : 0;
+  for (var i = 0; i < 81; i++) {
+    var el = cellEls[i];
+    var v = board[i];
+    if (v !== 0) {
+      el.textContent = String(v);
+    } else if (notes[i] !== 0) {
+      renderNotes(el, notes[i]);
+    } else {
+      el.textContent = '';
     }
+    el.classList.toggle('given', isGiven(i));
+    el.classList.toggle('hinted', !isGiven(i) && hinted[i]);
+    el.classList.toggle('selected', i === selected);
+    el.classList.toggle('related', i !== selected && selected >= 0 && (
+      rowOf(i) === rowOf(selected) || colOf(i) === colOf(selected) || boxOf(i) === boxOf(selected)
+    ));
+    el.classList.toggle('same', selVal !== 0 && v === selVal && i !== selected);
+    el.classList.toggle('conflict', !!conflicts[i]);
   }
-  return false;
-}
-
-function techHiddenSingle(d, log) {
-  for (const unit of UNITS_ALL) {
-    for (let v = 1; v <= 9; v++) {
-      const bit = 1 << v;
-      let spot = -1, count = 0, placed = false;
-      for (const i of unit) {
-        if (d.val[i]) { if (d.val[i] === v) { placed = true; break; } continue; }
-        if (d.cands[i] & bit) { count++; spot = i; if (count > 1) break; }
-      }
-      if (placed || count !== 1) continue;
-      if (assign(d, spot, v)) {
-        if (log) log.push({ type: 'place', cell: spot, value: v, tech: 'hidden_single' });
-        return true;
-      }
-      return false;
-    }
+  for (var n = 1; n <= 9; n++) {
+    var btn = padButtons[n - 1];
+    btn.textContent = String(n);
+    btn.classList.toggle('active', selVal === n);
   }
-  return false;
+  timerEl.textContent = formatTime(elapsedMs);
+  errorsEl.textContent = String(errors);
+  hintsEl.textContent = String(HINTS_MAX - hintsUsed);
+  var b = bests[level];
+  bestEl.textContent = (b === null || b === undefined) ? '--:--' : formatTime(b);
+  levelNameEl.textContent = '· ' + LEVEL_LABEL[level];
 }
 
-function techLockedCandidates(d, log) {
-  // Pointing: en una caja, v solo cabe en una fila/columna => fuera de la caja, esa línea no admite v
-  for (let b = 0; b < 9; b++) {
-    const box = UNITS_ALL[18 + b];
-    for (let v = 1; v <= 9; v++) {
-      const bit = 1 << v;
-      const spots = [];
-      let placed = false;
-      for (const i of box) {
-        if (d.val[i]) { if (d.val[i] === v) { placed = true; break; } continue; }
-        if (d.cands[i] & bit) spots.push(i);
-      }
-      if (placed || spots.length < 2) continue;
-      let sameRow = true, sameCol = true;
-      for (const i of spots) {
-        if (ROW_OF[i] !== ROW_OF[spots[0]]) sameRow = false;
-        if (COL_OF[i] !== COL_OF[spots[0]]) sameCol = false;
-      }
-      let changed = false;
-      if (sameRow || sameCol) {
-        for (const i of spots) void i;
-        for (let j = 0; j < 81; j++) {
-          if (d.val[j] || BOX_OF[j] === b || !(d.cands[j] & bit)) continue;
-          if (sameRow && ROW_OF[j] === ROW_OF[spots[0]]) {
-            if (eliminate(d, j, bit)) { if (log) log.push({ type: 'elim', cell: j, value: v, tech: 'locked_candidates' }); changed = true; }
-          } else if (sameCol && COL_OF[j] === COL_OF[spots[0]]) {
-            if (eliminate(d, j, bit)) { if (log) log.push({ type: 'elim', cell: j, value: v, tech: 'locked_candidates' }); changed = true; }
-          }
-        }
-      }
-      if (changed) return true;
-    }
-  }
-  // Claiming: en una fila/columna, v solo cabe en una caja => el resto de la caja no admite v
-  for (let u = 0; u < 18; u++) {
-    const unit = UNITS_ALL[u];
-    const unitSet = new Set(unit);
-    for (let v = 1; v <= 9; v++) {
-      const bit = 1 << v;
-      const spots = [];
-      let placed = false;
-      for (const i of unit) {
-        if (d.val[i]) { if (d.val[i] === v) { placed = true; break; } continue; }
-        if (d.cands[i] & bit) spots.push(i);
-      }
-      if (placed || spots.length < 2) continue;
-      let sameBox = true;
-      for (const i of spots) if (BOX_OF[i] !== BOX_OF[spots[0]]) { sameBox = false; break; }
-      if (!sameBox) continue;
-      const b = BOX_OF[spots[0]];
-      let changed = false;
-      for (const i of UNITS_ALL[18 + b]) {
-        if (unitSet.has(i) || d.val[i] || !(d.cands[i] & bit)) continue;
-        if (eliminate(d, i, bit)) { if (log) log.push({ type: 'elim', cell: i, value: v, tech: 'locked_candidates' }); changed = true; }
-      }
-      if (changed) return true;
-    }
-  }
-  return false;
-}
-
-function techNakedSubset(d, log, size) {
-  const tech = { 2: 'naked_pair', 3: 'naked_triple', 4: 'naked_quad' }[size];
-  const maxCand = size === 2 ? 9 : size === 3 ? 8 : 7; // poda de rendimiento (conservadora)
-  for (const unit of UNITS_ALL) {
-    const cand = [];
-    let open = 0;
-    for (const i of unit) {
-      if (d.val[i]) continue;
-      open++;
-      if (popcount(d.cands[i]) <= size) cand.push(i);
-    }
-    if (open <= size || cand.length < size || cand.length > maxCand) continue;
-    for (const combo of combinations(cand, size)) {
-      let mask = 0;
-      for (const i of combo) mask |= d.cands[i];
-      if (popcount(mask) !== size) continue;
-      let changed = false;
-      for (const i of unit) {
-        if (d.val[i] || combo.includes(i)) continue;
-        const hit = d.cands[i] & mask;
-        if (!hit) continue;
-        for (let v = 1; v <= 9; v++) {
-          const bit = 1 << v;
-          if (hit & bit) {
-            if (eliminate(d, i, bit)) { if (log) log.push({ type: 'elim', cell: i, value: v, tech }); changed = true; }
-          }
-        }
-      }
-      if (changed) return true;
-    }
-  }
-  return false;
-}
-
-function techHiddenSubset(d, log, size) {
-  const tech = { 2: 'hidden_pair', 3: 'hidden_triple', 4: 'hidden_quad' }[size];
-  for (const unit of UNITS_ALL) {
-    const spots = {};
-    const values = [];
-    for (let v = 1; v <= 9; v++) {
-      const cellsV = [];
-      for (const i of unit) {
-        if (!d.val[i] && (d.cands[i] & (1 << v))) cellsV.push(i);
-      }
-      if (cellsV.length >= 2 && cellsV.length <= size) { spots[v] = cellsV; values.push(v); }
-    }
-    if (values.length < size) continue;
-    for (const combo of combinations(values, size)) {
-      const cellSet = new Set();
-      for (const v of combo) for (const i of spots[v]) cellSet.add(i);
-      if (cellSet.size !== size) continue;
-      let mask = 0;
-      for (const v of combo) mask |= 1 << v;
-      let changed = false;
-      for (const i of cellSet) {
-        const hit = d.cands[i] & ~mask & 0x3FE;
-        if (!hit) continue;
-        for (let v = 1; v <= 9; v++) {
-          const bit = 1 << v;
-          if (hit & bit) {
-            if (eliminate(d, i, bit)) { if (log) log.push({ type: 'elim', cell: i, value: v, tech }); changed = true; }
-          }
-        }
-      }
-      if (changed) return true;
-    }
-  }
-  return false;
-}
-
-function techXWing(d, log) {
-  for (let v = 1; v <= 9; v++) {
-    const bit = 1 << v;
-    for (let orient = 0; orient < 2; orient++) { // 0 = filas, 1 = columnas
-      const lines = [];
-      for (let x = 0; x < 9; x++) {
-        const ys = [];
-        for (let y = 0; y < 9; y++) {
-          const i = orient === 0 ? x * 9 + y : y * 9 + x;
-          if (!d.val[i] && (d.cands[i] & bit)) ys.push(y);
-        }
-        if (ys.length === 2) lines.push({ x, ys });
-      }
-      for (let a = 0; a < lines.length; a++) {
-        for (let b = a + 1; b < lines.length; b++) {
-          const A = lines[a], B = lines[b];
-          if (A.ys[0] !== B.ys[0] || A.ys[1] !== B.ys[1]) continue;
-          let changed = false;
-          for (const L of lines) {
-            if (L === A || L === B) continue;
-            for (const y of A.ys) {
-              const i = orient === 0 ? L.x * 9 + y : y * 9 + L.x;
-              if (!d.val[i] && (d.cands[i] & bit)) {
-                if (eliminate(d, i, bit)) { if (log) log.push({ type: 'elim', cell: i, value: v, tech: 'x_wing' }); changed = true; }
-              }
-            }
-          }
-          if (changed) return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-function techSwordfish(d, log) {
-  for (let v = 1; v <= 9; v++) {
-    const bit = 1 << v;
-    for (let orient = 0; orient < 2; orient++) {
-      const lines = [];
-      for (let x = 0; x < 9; x++) {
-        const ys = [];
-        for (let y = 0; y < 9; y++) {
-          const i = orient === 0 ? x * 9 + y : y * 9 + x;
-          if (!d.val[i] && (d.cands[i] & bit)) ys.push(y);
-        }
-        if (ys.length >= 2 && ys.length <= 3) lines.push({ x, ys });
-      }
-      if (lines.length < 3) continue;
-      for (const trio of combinations(lines, 3)) {
-        let mask = 0;
-        for (const L of trio) for (const y of L.ys) mask |= 1 << y;
-        if (popcount(mask) !== 3) continue;
-        let changed = false;
-        for (const L of lines) {
-          if (trio.includes(L)) continue;
-          for (const y of L.ys) {
-            if (!(mask & (1 << y))) continue; // solo se elimina dentro de las unidades de cobertura
-            const i = orient === 0 ? L.x * 9 + y : y * 9 + L.x;
-            if (!d.val[i] && (d.cands[i] & bit)) {
-              if (eliminate(d, i, bit)) { if (log) log.push({ type: 'elim', cell: i, value: v, tech: 'swordfish' }); changed = true; }
-            }
-          }
-        }
-        if (changed) return true;
-      }
-    }
-  }
-  return false;
-}
-
-function biValueCells(d) {
-  const out = [];
-  for (let i = 0; i < 81; i++) {
-    if (!d.val[i] && popcount(d.cands[i]) === 2) out.push({ i, vals: candVals(d, i) });
-  }
-  return out;
-}
-
-function techXYWing(d, log) {
-  const bi = biValueCells(d);
-  for (const p of bi) {
-    for (const q1 of bi) {
-      if (q1.i === p.i || !PEER_FLAG[p.i][q1.i]) continue;
-      const common = p.vals.filter((v) => q1.vals.includes(v));
-      if (common.length !== 1) continue;
-      const a = common[0];
-      const z = q1.vals[0] === a ? q1.vals[1] : q1.vals[0];
-      const other = p.vals[0] === a ? p.vals[1] : p.vals[0];
-      if (z === other) continue;
-      for (const q2 of bi) {
-        if (q2.i === p.i || q2.i === q1.i || !PEER_FLAG[p.i][q2.i]) continue;
-        if (!(q2.vals.includes(other) && q2.vals.includes(z))) continue;
-        const bitZ = 1 << z;
-        let changed = false;
-        for (let i = 0; i < 81; i++) {
-          if (d.val[i] || !(d.cands[i] & bitZ)) continue;
-          if (!PEER_FLAG[i][q1.i] || !PEER_FLAG[i][q2.i]) continue;
-          if (eliminate(d, i, bitZ)) { if (log) log.push({ type: 'elim', cell: i, value: z, tech: 'xy_wing' }); changed = true; }
-        }
-        if (changed) return true;
-      }
-    }
-  }
-  return false;
-}
-
-function techXYZWing(d, log) {
-  const bi = [], tri = [];
-  for (let i = 0; i < 81; i++) {
-    if (d.val[i]) continue;
-    const pc = popcount(d.cands[i]);
-    if (pc === 2) bi.push({ i, vals: candVals(d, i) });
-    else if (pc === 3) tri.push({ i, vals: candVals(d, i) });
-  }
-  for (const p of tri) {
-    for (const q1 of bi) {
-      if (!PEER_FLAG[p.i][q1.i] || !q1.vals.every((v) => p.vals.includes(v))) continue;
-      for (const q2 of bi) {
-        if (q2.i === q1.i || !PEER_FLAG[p.i][q2.i] || !q2.vals.every((v) => p.vals.includes(v))) continue;
-        if (q2.vals[0] === q1.vals[0] && q2.vals[1] === q1.vals[1]) continue;
-        const common = q1.vals.filter((v) => q2.vals.includes(v));
-        if (common.length !== 1) continue;
-        const z = common[0];
-        const bitZ = 1 << z;
-        let changed = false;
-        for (let i = 0; i < 81; i++) {
-          if (d.val[i] || !(d.cands[i] & bitZ)) continue;
-          if (!(PEER_FLAG[i][p.i] && PEER_FLAG[i][q1.i] && PEER_FLAG[i][q2.i])) continue;
-          if (eliminate(d, i, bitZ)) { if (log) log.push({ type: 'elim', cell: i, value: z, tech: 'xyz_wing' }); changed = true; }
-        }
-        if (changed) return true;
-      }
-    }
-  }
-  return false;
-}
-
-function applyTech(d, t, log) {
-  switch (t.id) {
-    case 'full_house': return techFullHouse(d, log);
-    case 'naked_single': return techNakedSingle(d, log);
-    case 'hidden_single': return techHiddenSingle(d, log);
-    case 'locked_candidates': return techLockedCandidates(d, log);
-    case 'naked_pair': return techNakedSubset(d, log, 2);
-    case 'naked_triple': return techNakedSubset(d, log, 3);
-    case 'naked_quad': return techNakedSubset(d, log, 4);
-    case 'hidden_pair': return techHiddenSubset(d, log, 2);
-    case 'hidden_triple': return techHiddenSubset(d, log, 3);
-    case 'hidden_quad': return techHiddenSubset(d, log, 4);
-    case 'x_wing': return techXWing(d, log);
-    case 'swordfish': return techSwordfish(d, log);
-    case 'xy_wing': return techXYWing(d, log);
-    case 'xyz_wing': return techXYZWing(d, log);
-    default: return false;
-  }
-}
-
-/* ---------------- Gradador ----------------
- * Resuelve el puzzle aplicando SOLO técnicas del repertorio dado (sin
- * backtracking ni conjeturas). Devuelve si se resuelve completo y cuál fue
- * la técnica más difícil utilizada. */
-function gradeGrid(grid, techIds) {
-  const d = solverStateFor(grid);
-  if (!d) return { solved: false, hardest: null, used: [] };
-  const techList = techIds.map((id) => TECH_BY_ID[id]).filter(Boolean);
-  let hardest = null;
-  const used = [];
-  for (let round = 0; round < 1200; round++) {
-    let pending = false;
-    for (let i = 0; i < 81; i++) if (!d.val[i]) { pending = true; break; }
-    if (!pending) return { solved: true, hardest, used };
-    let progressed = false;
-    for (const t of techList) {
-      if (applyTech(d, t, null)) {
-        used.push(t.id);
-        if (!hardest || t.step > hardest.step) hardest = t;
-        progressed = true;
-        break;
-      }
-    }
-    if (!progressed) return { solved: false, hardest, used };
-  }
-  return { solved: false, hardest, used };
-}
-
-/* Rating honesto: el nivel más bajo cuyo techo de técnicas resuelve el puzzle. */
-function ratePuzzle(grid) {
-  for (const level of LEVEL_ORDER) {
-    const g = gradeGrid(grid, LEVEL_TECHS[level]);
-    if (g.solved) {
-      const t = g.hardest;
-      return {
-        level,
-        code: t ? t.id : 'full_house',
-        name: t ? t.name : TECH_BY_ID.full_house.name,
-        step: t ? t.step : 1,
-        pct: t ? Math.round((t.step / TECH_LIST.length) * 100) : Math.round(100 / TECH_LIST.length),
-      };
-    }
-  }
-  return { level: null, code: 'beyond', name: 'Fuera del repertorio lógico', step: 99, pct: 100 };
-}
-
-/* ---------------- Pista lógica (nunca un valor mágico) ----------------
- * Construye el estado lógico real del tablero del jugador (givens + aciertos;
- * las celdas vacías o erróneas se tratan como vacías), aplica técnicas en
- * orden y devuelve el primer paso relevante: una colocación con nombre de
- * técnica, o (respaldo) una eliminación disponible. */
-function computeHint(playerGrid, solution) {
-  const g = new Uint8Array(81);
-  for (let i = 0; i < 81; i++) {
-    const v = playerGrid[i];
-    g[i] = v >= 1 && v === solution[i] ? v : 0;
-  }
-  const d = solverStateFor(g);
-  if (!d) return null;
-  // La propagación inicial (cascada de singles desde los dados) ya coloca
-  // valores: en el estado propagado, cada celda vacía con valor tiene una
-  // única candidata, así que la primera se atribuye honestamente como
-  // naked_single (exactamente lo que vería el jugador con lápiz). Sin esto,
-  // en puzzles fáciles la cascada resuelve todo y la pista saldría "sin
-  // deducción pendiente".
-  for (let i = 0; i < 81; i++) {
-    if (!playerGrid[i] && d.val[i]) {
-      return { cell: i, value: d.val[i], technique: TECH_BY_ID.naked_single.name, techId: 'naked_single' };
-    }
-  }
-  const techList = LEVEL_TECHS.experto.map((id) => TECH_BY_ID[id]);
-  let firstElim = null;
-  for (let round = 0; round < 1200; round++) {
-    let pending = false;
-    for (let i = 0; i < 81; i++) if (!d.val[i]) { pending = true; break; }
-    if (!pending) return firstElim || { none: true };
-    let progressed = false;
-    for (const t of techList) {
-      const log = [];
-      const valBefore = d.val.slice();
-      if (applyTech(d, t, log)) {
-        progressed = true;
-        // 1) colocación directa de la técnica en una celda vacía del jugador
-        for (const entry of log) {
-          if (entry.type === 'place' && !playerGrid[entry.cell]) {
-            return { cell: entry.cell, value: entry.value, technique: t.name, techId: t.id };
-          }
-        }
-        // 2) colocación por propagación (cascada) => single desnudo
-        for (let i = 0; i < 81; i++) {
-          if (!valBefore[i] && d.val[i] && !playerGrid[i]) {
-            return { cell: i, value: d.val[i], technique: TECH_BY_ID.naked_single.name, techId: 'naked_single' };
-          }
-        }
-        // 3) solo eliminaciones: se recuerda la primera como respaldo
-        if (!firstElim) {
-          const elims = log.filter((e) => e.type === 'elim');
-          if (elims.length) {
-            const parts = elims.slice(0, 3).map((e) =>
-              `quita el ${e.value} de fila ${ROW_OF[e.cell] + 1}, columna ${COL_OF[e.cell] + 1}`
-            );
-            firstElim = {
-              elimination: true,
-              technique: t.name,
-              techId: t.id,
-              text: parts.join('; ') + (elims.length > 3 ? `; y ${elims.length - 3} más` : ''),
-            };
-          }
-        }
-        break;
-      }
-    }
-    if (!progressed) return firstElim || { none: true };
-  }
-  return firstElim || { none: true };
-}
-
-/* ====================== NÚCLEO ALGORÍTMICO: FIN ====================== */
-
-/* ---------------- Estado del juego ---------------- */
-const data = {
-  seedBase: 1, seed: 1, gameIndex: 0, level: 'facil',
-  solution: null, puzzle: null, currentPuzzleSolutions: null,
-  given: new Uint8Array(81), current: new Uint8Array(81), notes: [],
-  counter: 0, errors: 0, history: [], future: [],
-  selected: { r: 0, c: 0 },
-  checkMode: false, notesMode: false, errorsMode: false,
-  solved: false, paused: false, runningTest: false, flashHint: null,
-  startTime: 0, elapsedMs: 0, rating: null,
-};
-
-const boardEl = document.getElementById('board');
-const cells = [];
-for (let r = 0; r < 9; r++) {
-  for (let c = 0; c < 9; c++) {
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    cell.dataset.r = r; cell.dataset.c = c;
-    cell.setAttribute('role', 'gridcell');
-    cell.innerHTML = '<span class="n"></span><div class="notes"></div>';
-    cell.addEventListener('click', () => selectCell(r, c));
-    boardEl.appendChild(cell);
-    cells.push(cell);
-  }
-}
-
-const els = {
-  time: document.getElementById('time'),
-  errors: document.getElementById('errors'),
-  tips: document.getElementById('tips'),
-  levelSelect: document.getElementById('level-select'),
-  checkBtn: document.getElementById('btn-check'),
-  hintBtn: document.getElementById('btn-hint'),
-  undoBtn: document.getElementById('btn-undo'),
-  redoBtn: document.getElementById('btn-redo'),
-  restartBtn: document.getElementById('btn-restart'),
-  newBtn: document.getElementById('btn-new'),
-  notesBtn: document.getElementById('btn-notes'),
-  win: document.getElementById('win'),
-  winText: document.getElementById('win-text'),
-  againBtn: document.getElementById('btn-again'),
-  toast: document.getElementById('toast'),
-  overlay: document.getElementById('overlay'),
-  overlayClose: document.getElementById('overlay-close'),
-  dbgSeed: document.getElementById('dbg-seed'),
-  dbgLevel: document.getElementById('dbg-level'),
-  dbgClues: document.getElementById('dbg-clues'),
-  dbgSol: document.getElementById('dbg-sol'),
-  dbgTech: document.getElementById('dbg-tech'),
-  dbgState: document.getElementById('dbg-state'),
-  dbgErrMode: document.getElementById('dbg-errmode'),
-  dbgEngine: document.getElementById('dbg-engine'),
-  dbgRatingCode: document.getElementById('dbg-rating-code'),
-  dbgRatingDesc: document.getElementById('dbg-rating-desc'),
-  dbgRatingBar: document.getElementById('dbg-rating-bar'),
-  autotestCount: document.getElementById('autotest-count'),
-  autotestRun: document.getElementById('autotest-run'),
-  autotestStop: document.getElementById('autotest-stop'),
-  autotestProgress: document.getElementById('autotest-progress'),
-  autotestStatus: document.getElementById('autotest-status'),
-  autotestOut: document.getElementById('autotest-out'),
-  statusDot: document.getElementById('status-dot'),
-};
-
-let toastTimer = null;
-function toast(msg, kind, ms) {
-  els.toast.textContent = msg;
-  els.toast.className = 'show' + (kind ? ' ' + kind : '');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { els.toast.className = ''; }, ms || 2600);
-}
-
-const fmtMs = (ms) => {
-  const s = Math.floor(ms / 1000);
-  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-};
-
-/* ---------------- historial (deshacer / rehacer) ---------------- */
-function snapshot() {
-  return { cur: data.current.slice(), notes: data.notes.map((n) => n.slice()), counter: data.counter, errors: data.errors };
-}
-function pushHistory() {
-  data.history.push(snapshot());
-  if (data.history.length > 300) data.history.shift();
-  data.future = [];
-}
-function undo() {
-  if (data.runningTest) return;
-  if (!data.history.length) { toast('Nada que deshacer', 'warn', 1200); return; }
-  data.future.push(snapshot());
-  const s = data.history.pop();
-  data.current = s.cur; data.notes = s.notes; data.counter = s.counter; data.errors = s.errors;
-  if (data.solved) { data.solved = false; hideWin(); }
-  updateStats(); render(); updateOverlayInfo();
-}
-function redo() {
-  if (data.runningTest) return;
-  if (!data.future.length) { toast('Nada que rehacer', 'warn', 1200); return; }
-  data.history.push(snapshot());
-  const s = data.future.pop();
-  data.current = s.cur; data.notes = s.notes; data.counter = s.counter; data.errors = s.errors;
-  updateStats(); render(); updateOverlayInfo();
-  if (isBoardComplete()) evaluateWin();
-}
-
-/* ---------------- partida ---------------- */
-function readSeedFromUrl() {
-  const params = new URLSearchParams(location.search);
-  const n = parseInt(params.get('seed'), 10);
-  return Number.isFinite(n) && n >= 0 ? n >>> 0 : 1;
-}
-function readLevelFromUrl() {
-  const params = new URLSearchParams(location.search);
-  const l = params.get('level');
-  return LEVELS[l] ? l : 'facil';
-}
-
-function newGame() {
-  hideWin();
-  const seed = (data.seedBase + data.gameIndex) >>> 0;
-  data.seed = seed;
-  const gen = generatePuzzle(seed, data.level);
-  data.solution = gen.solution;
-  data.puzzle = gen.puzzle;
-  data.currentPuzzleSolutions = gen.solutions;
-  data.given = new Uint8Array(81);
-  data.current = new Uint8Array(81);
-  data.notes = [];
-  for (let i = 0; i < 81; i++) {
-    data.notes.push(new Uint8Array(10));
-    if (gen.puzzle[i]) { data.given[i] = 1; data.current[i] = gen.puzzle[i]; }
-  }
-  data.counter = 0; data.errors = 0;
-  data.history = []; data.future = [];
-  data.selected = { r: 0, c: 0 };
-  data.solved = false; data.paused = false; data.flashHint = null;
-  data.checkMode = false;
-  els.checkBtn.classList.remove('on');
-  document.body.dataset.state = 'game';
-  data.startTime = Date.now(); data.elapsedMs = 0;
-  data.rating = gen.rating || ratePuzzle(gen.puzzle);
-  updateStats(); render(); updateOverlayInfo();
-}
-
-/* Nueva partida (Enter / botón / cambio de nivel): avanza la semilla de forma
- * determinista (seedBase + nº de partida). Recargar la página reinicia. */
-function startGame() {
-  if (data.runningTest) { toast('Ejecutando AUTOTEST — espera a que termine', 'warn'); return; }
-  data.gameIndex++;
-  newGame();
-}
-
-function restartGame() {
-  if (data.runningTest) { toast('Ejecutando AUTOTEST…', 'warn'); return; }
-  data.current = data.puzzle.slice();
-  data.notes = [];
-  for (let i = 0; i < 81; i++) data.notes.push(new Uint8Array(10));
-  data.counter = 0; data.errors = 0;
-  data.history = []; data.future = [];
-  data.solved = false; data.paused = false; data.flashHint = null;
-  document.body.dataset.state = 'game';
-  data.startTime = Date.now(); data.elapsedMs = 0;
-  hideWin();
-  updateStats(); render(); updateOverlayInfo();
-  toast('Puzzle reiniciado', 'ok', 1500);
-}
-
-function togglePause() {
-  if (data.solved || data.runningTest) return;
-  if (data.paused) {
-    data.paused = false;
-    data.startTime = Date.now() - data.elapsedMs;
-    document.body.dataset.state = 'game';
-  } else {
-    data.paused = true;
-    data.elapsedMs = Date.now() - data.startTime;
-    document.body.dataset.state = 'paused';
-  }
-  render(); updateStats();
-}
-
-/* ---------------- interacción ---------------- */
-function selectCell(r, c) {
-  if (data.paused) return;
-  data.selected = { r, c };
-  render();
-}
-
-function moveSelection(dr, dc) {
-  if (data.paused) return;
-  let r = data.selected.r + dr;
-  let c = data.selected.c + dc;
-  if (r < 0) r = 8; if (r > 8) r = 0;
-  if (c < 0) c = 8; if (c > 8) c = 0;
-  data.selected = { r, c };
-  render();
-}
-
-function handleDigit(dgt) {
-  if (data.paused || data.solved || data.runningTest) return;
-  const idx = data.selected.r * 9 + data.selected.c;
-  if (data.given[idx]) { toast('Las pistas iniciales no se pueden modificar ni borrar', 'warn', 1600); return; }
-  if (data.notesMode) {
-    if (data.current[idx]) { toast('Borra el valor antes de tomar notas en la celda', 'warn', 1400); return; }
-    pushHistory();
-    data.notes[idx][dgt] = data.notes[idx][dgt] ? 0 : 1;
-    render();
+/** Coloca un número o alterna un candidato según el modo. */
+function handleNumberInput(num) {
+  if (status !== 'playing' || selected < 0) return;
+  if (isLocked(selected)) {
+    showMessage('Las pistas iniciales no se pueden modificar.', 'warning');
     return;
   }
-  if (data.current[idx] === dgt) { eraseCell(); return; }
-  pushHistory();
-  data.current[idx] = dgt;
-  data.notes[idx] = new Uint8Array(10);
-  if (dgt !== data.solution[idx]) {
-    data.errors++;
-    if (data.errorsMode) {
-      cells[idx].classList.add('flash-wrong');
-      setTimeout(() => cells[idx].classList.remove('flash-wrong'), 320);
-    }
+  if (board[selected] !== 0 && !notesMode) {
+    if (board[selected] === num) return;
   }
-  updateStats(); render(); updateOverlayInfo();
-  if (isBoardComplete()) evaluateWin();
+  if (notesMode) {
+    if (board[selected] !== 0) return;
+    var bit = 1 << (num - 1);
+    notes[selected] ^= bit;
+    showMessage('', '');
+    renderBoard();
+    return;
+  }
+  var prev = board[selected];
+  if (prev === num) return;
+  if (placementConflicts(board, selected, num)) {
+    errors++;
+    beep(200, 0.15);
+  } else {
+    beep(600, 0.06);
+  }
+  undoStack.push({ idx: selected, prevVal: prev, nextVal: num, prevNotes: notes[selected], nextNotes: 0 });
+  redoStack = [];
+  board[selected] = num;
+  notes[selected] = 0;
+  showMessage('', '');
+  renderBoard();
+  checkWin();
 }
 
-function eraseCell() {
-  if (data.paused || data.solved || data.runningTest) return;
-  const idx = data.selected.r * 9 + data.selected.c;
-  if (data.given[idx]) { toast('Las pistas iniciales no se pueden modificar ni borrar', 'warn', 1600); return; }
-  if (!data.current[idx] && !data.notes[idx].some(Boolean)) return;
-  pushHistory();
-  data.current[idx] = 0;
-  data.notes[idx] = new Uint8Array(10);
-  render();
+function eraseSelected() {
+  if (status !== 'playing' || selected < 0) return;
+  if (isLocked(selected)) return;
+  if (board[selected] === 0 && notes[selected] === 0) return;
+  undoStack.push({ idx: selected, prevVal: board[selected], nextVal: 0, prevNotes: notes[selected], nextNotes: notes[selected] });
+  redoStack = [];
+  board[selected] = 0;
+  showMessage('', '');
+  renderBoard();
 }
 
-function toggleNotesMode() {
-  data.notesMode = !data.notesMode;
-  render();
-  toast(data.notesMode ? '✏️ Modo notas ACTIVADO — 1-9 ponen/quitan candidatos' : 'Modo notas desactivado', '', 1600);
+function undoMove() {
+  if (status !== 'playing') return;
+  var last = undoStack.pop();
+  if (!last) {
+    showMessage('No hay movimientos que deshacer.', 'warning');
+    return;
+  }
+  redoStack.push(last);
+  board[last.idx] = last.prevVal;
+  notes[last.idx] = last.prevNotes;
+  selected = last.idx;
+  showMessage('', '');
+  renderBoard();
+}
+
+function redoMove() {
+  if (status !== 'playing') return;
+  var next = redoStack.pop();
+  if (!next) {
+    showMessage('No hay movimientos que rehacer.', 'warning');
+    return;
+  }
+  undoStack.push(next);
+  board[next.idx] = next.nextVal;
+  notes[next.idx] = next.nextNotes;
+  selected = next.idx;
+  showMessage('', '');
+  renderBoard();
+  checkWin();
+}
+
+/**
+ * Pista honesta: solo rellena si hay una deducción lógica (single desnudo u
+ * oculto) válida en la posición actual, y nombra la técnica. El valor se
+ * contrasta con la solución para no mentir si el jugador metió un error:
+ * en ese caso no se consume la pista. Límite: HINTS_MAX por partida.
+ */
+function giveHint() {
+  if (status !== 'playing') return;
+  if (hintsUsed >= HINTS_MAX) {
+    showMessage('Ya usaste las ' + HINTS_MAX + ' pistas de esta partida.', 'warning');
+    return;
+  }
+  if (Object.keys(findValueConflicts(board)).length > 0) {
+    showMessage('Hay conflictos en el tablero: actívalos con Comprobar y corrígelos antes de pedir pista.', 'error');
+    return;
+  }
+  var cands = computeCandidates(board);
+  var step = findLogicalStep(board, cands);
+  if (step === null || step.placements.length === 0 ||
+      step.tier > TIER_HIDDEN_SINGLE) {
+    showMessage('No hay deducción simple disponible ahora mismo.', 'warning');
+    return;
+  }
+  var move = step.placements[0];
+  if (solution[move.idx] !== move.val) {
+    showMessage('Hay un error en el tablero que impide deducir: revísalo.', 'error');
+    return;
+  }
+  undoStack.push({ idx: move.idx, prevVal: 0, nextVal: move.val, prevNotes: notes[move.idx], nextNotes: 0 });
+  redoStack = [];
+  board[move.idx] = move.val;
+  notes[move.idx] = 0;
+  hinted[move.idx] = true;
+  selected = move.idx;
+  hintsUsed++;
+  beep(800, 0.08);
+  showMessage('Pista (' + TECH_NAMES[step.tier] + '): fila ' + (rowOf(move.idx) + 1) +
+    ', columna ' + (colOf(move.idx) + 1) + ' = ' + move.val + '.', 'success');
+  renderBoard();
+  checkWin();
 }
 
 function toggleCheck() {
-  data.checkMode = !data.checkMode;
-  els.checkBtn.classList.toggle('on', data.checkMode);
-  render();
+  checkMode = !checkMode;
+  document.getElementById('btn-check').textContent = 'Comprobar: ' + (checkMode ? 'ON' : 'OFF');
+  renderBoard();
 }
 
-/* ---------------- render ---------------- */
-function updateStats() {
-  els.errors.textContent = String(data.errors);
-  els.tips.textContent = data.counter + '/' + MAX_TIPS;
-  els.time.textContent = fmtMs(data.paused ? data.elapsedMs : (data.solved ? data.elapsedMs : Date.now() - data.startTime));
-  els.hintBtn.disabled = data.counter >= MAX_TIPS;
+function toggleNotes() {
+  notesMode = !notesMode;
+  document.getElementById('btn-notes').textContent = 'Notas: ' + (notesMode ? 'ON' : 'OFF');
+  document.getElementById('btn-notes').classList.toggle('on', notesMode);
+  showMessage(notesMode ? 'Modo notas: 1-9 ponen/quitan candidatos.' : '', '');
 }
 
-function hasConflictAt(g, idx) {
-  const v = g[idx];
-  if (!v) return false;
-  for (const j of PEERS[idx]) if (g[j] === v) return true;
-  return false;
-}
-
-function render() {
-  const sr = data.selected.r, sc = data.selected.c;
-  const selIdx = sr * 9 + sc;
-  const selVal = data.current[selIdx];
-  for (let i = 0; i < 81; i++) {
-    const cell = cells[i];
-    cell.className = 'cell';
-    cell.classList.toggle('hl-sel', i === selIdx);
-    cell.classList.toggle('hl-line', ROW_OF[i] === sr || COL_OF[i] === sc);
-    cell.classList.toggle('hl-box', BOX_OF[i] === BOX_OF[selIdx]);
-    cell.classList.toggle('hl-same', selVal !== 0 && data.current[i] === selVal);
-    cell.classList.toggle('hl-hinted', i === data.flashHint);
-    if (data.checkMode && hasConflictAt(data.current, i)) cell.classList.add('hl-conflict');
-    const nEl = cell.querySelector('.n');
-    const notesEl = cell.querySelector('.notes');
-    const val = data.current[i];
-    if (val) {
-      notesEl.style.display = 'none';
-      nEl.textContent = String(val);
-      nEl.className = 'n ' + (data.given[i] ? 'given' : 'user');
-      if (data.errorsMode && !data.given[i] && val !== data.solution[i]) cell.classList.add('hl-checkerr');
-    } else {
-      nEl.textContent = '';
-      nEl.className = 'n';
-      const notes = data.notes[i];
-      let any = false;
-      let html = '';
-      for (let d = 1; d <= 9; d++) {
-        if (notes[d]) { any = true; html += '<span>' + d + '</span>'; }
-        else html += '<span></span>';
-      }
-      notesEl.innerHTML = html;
-      notesEl.style.display = any ? 'grid' : 'none';
-    }
+function togglePause() {
+  if (status === 'playing') {
+    status = 'paused';
+    document.getElementById('pause-veil').classList.remove('hidden');
+  } else if (status === 'paused') {
+    status = 'playing';
+    document.getElementById('pause-veil').classList.add('hidden');
+    lastTick = Date.now();
   }
-  els.notesBtn.classList.toggle('on', data.notesMode);
-  els.undoBtn.disabled = data.history.length === 0;
-  els.redoBtn.disabled = data.future.length === 0;
+  renderBoard();
 }
 
-function isBoardComplete() {
-  for (let i = 0; i < 81; i++) if (!data.current[i]) return false;
-  return true;
+/** Reinicia el puzzle actual (misma semilla y nivel). */
+function restartPuzzle() {
+  board = puzzle.slice();
+  notes = new Array(81).fill(0);
+  hinted = new Array(81).fill(false);
+  selected = -1;
+  errors = 0;
+  hintsUsed = 0;
+  undoStack = [];
+  redoStack = [];
+  elapsedMs = 0;
+  lastTick = Date.now();
+  status = 'playing';
+  document.getElementById('pause-veil').classList.add('hidden');
+  document.getElementById('victory-veil').classList.add('hidden');
+  showMessage('Puzzle reiniciado.', '');
+  renderBoard();
 }
 
-function evaluateWin() {
-  for (let i = 0; i < 81; i++) {
-    if (data.current[i] !== data.solution[i]) {
-      toast('El tablero está completo pero contiene errores — usa Comprobar para localizarlos', 'err', 3200);
+function checkWin() {
+  if (status !== 'playing') return;
+  for (var i = 0; i < 81; i++) {
+    if (board[i] === 0) return;
+  }
+  if (Object.keys(findValueConflicts(board)).length > 0) return;
+  status = 'solved';
+  var finalMs = elapsedMs;
+  var prev = bests[level];
+  if (prev === null || prev === undefined || finalMs < prev) {
+    bests[level] = finalMs;
+  }
+  beep(660, 0.1);
+  setTimeout(function () { beep(880, 0.15); }, 120);
+  var info = 'Nivel ' + LEVEL_LABEL[level] + ' · Tiempo final: ' + formatTime(finalMs) +
+    ' · Récord: ' + formatTime(bests[level]) + ' · Errores: ' + errors;
+  document.getElementById('victory-info').textContent = info;
+  document.getElementById('victory-veil').classList.remove('hidden');
+  renderBoard();
+}
+
+function tickTimer() {
+  if (status !== 'playing') return;
+  var now = Date.now();
+  elapsedMs += now - lastTick;
+  lastTick = now;
+  timerEl.textContent = formatTime(elapsedMs);
+}
+
+/** Pitido minimalista (WebAudio, offline). M lo silencia. */
+function beep(freq, seconds) {
+  if (muted) return;
+  try {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.value = 0.05;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + seconds);
+  } catch (e) {
+    // Sin audio: el juego sigue igual.
+  }
+}
+
+function toggleMute() {
+  muted = !muted;
+  document.getElementById('btn-mute').textContent = 'Sonido: ' + (muted ? 'OFF' : 'ON');
+  showMessage(muted ? 'Sonido silenciado (M para activar).' : 'Sonido activado.', '');
+}
+
+// === OVERLAY DE DEPURACIÓN + AUTOTEST ===
+// Oculto por defecto (` o F1). Muestra en vivo seed, nivel, pistas,
+// nº de soluciones del solver para el puzzle (siempre 1) y la técnica
+// más difícil requerida. El AUTOTEST genera N puzzles recorriendo
+// semillas y afirma que todos tienen solución única.
+
+function updateDebug() {
+  document.getElementById('dbg-seed').textContent = puzzle ? String(seed) : '-';
+  document.getElementById('dbg-level').textContent = puzzle ? LEVEL_LABEL[level] : '-';
+  document.getElementById('dbg-clues').textContent = puzzle ? String(countClues(puzzle)) : '-';
+  document.getElementById('dbg-count').textContent = puzzle ? String(countSolutions(puzzle, 2)) : '-';
+  document.getElementById('dbg-tech').textContent = grade ? grade.name : '-';
+}
+
+function toggleDebug() {
+  var dbg = document.getElementById('debug');
+  dbg.classList.toggle('hidden');
+  if (!dbg.classList.contains('hidden')) updateDebug();
+}
+
+function autotestLine(text, cls) {
+  var box = document.getElementById('autotest-results');
+  var div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  box.appendChild(div);
+}
+
+/**
+ * Genera N puzzles (semillas base..base+N-1, rotando los 4 niveles) y
+ * afirma: solución única (count === 1) y, en fácil/medio, resoluble solo
+ * con la lógica del nivel. Informa pasados/fallidos por nivel.
+ */
+function runAutotest() {
+  var nInput = parseInt(document.getElementById('autotest-n').value, 10);
+  var baseInput = parseInt(document.getElementById('autotest-base').value, 10);
+  var total = isNaN(nInput) ? 100 : Math.min(1000, Math.max(1, nInput));
+  var base = isNaN(baseInput) ? 1 : Math.max(1, baseInput);
+  var btn = document.getElementById('btn-autotest');
+  var box = document.getElementById('autotest-results');
+  box.innerHTML = '';
+  btn.disabled = true;
+  var perLevel = { facil: 0, medio: 0, dificil: 0, experto: 0 };
+  var perLevelFail = { facil: 0, medio: 0, dificil: 0, experto: 0 };
+  var logicFails = 0;
+  var failed = [];
+  var i = 0;
+  autotestLine('Autotest: ' + total + ' puzzles desde semilla ' + base + '…');
+
+  function chunk() {
+    var end = Math.min(total, i + 4);
+    for (; i < end; i++) {
+      var lv = LEVELS[i % 4];
+      var sd = base + i;
+      var gen = generatePuzzle(makeRng(sd), lv);
+      var c = countSolutions(gen.puzzle, 2);
+      if (c === 1) {
+        perLevel[lv]++;
+        if ((lv === 'facil' || lv === 'medio') &&
+            !solveLogical(gen.puzzle, LEVEL_CFG[lv].maxTier).solved) {
+          logicFails++;
+          failed.push('seed=' + sd + ' ' + lv + ': exige conjetura');
+        }
+      } else {
+        perLevelFail[lv]++;
+        failed.push('seed=' + sd + ' ' + lv + ': ' + c + ' soluciones');
+      }
+    }
+    box.firstChild.textContent = 'Autotest: ' + i + '/' + total + '…';
+    if (i < total) {
+      setTimeout(chunk, 0);
       return;
     }
+    var pass = total - failed.length;
+    autotestLine('TOTAL: ' + pass + '/' + total + ' únicos' +
+      (failed.length === 0 ? ' — TODO OK' : ' — ' + failed.length + ' FALLOS'),
+      failed.length === 0 ? 'pass' : 'fail');
+    for (var l = 0; l < LEVELS.length; l++) {
+      var lv2 = LEVELS[l];
+      autotestLine('  ' + LEVEL_LABEL[lv2] + ': ' + perLevel[lv2] + ' únicos, ' +
+        perLevelFail[lv2] + ' fallos', perLevelFail[lv2] === 0 ? 'pass' : 'fail');
+    }
+    autotestLine('Fácil/medio sin conjetura: ' +
+      (logicFails === 0 ? 'OK' : logicFails + ' FALLOS'), logicFails === 0 ? 'pass' : 'fail');
+    for (var f = 0; f < Math.min(10, failed.length); f++) {
+      autotestLine('  ' + failed[f], 'fail');
+    }
+    btn.disabled = false;
   }
-  data.solved = true;
-  data.elapsedMs = Date.now() - data.startTime;
-  els.winText.textContent = 'Nivel ' + levelName(data.level) + ' · tiempo ' + fmtMs(data.elapsedMs) +
-    ' · errores: ' + data.errors + ' · pistas usadas: ' + data.counter + '/' + MAX_TIPS;
-  els.win.classList.add('show');
-  updateStats(); updateOverlayInfo();
+
+  setTimeout(chunk, 0);
 }
 
-function hideWin() { els.win.classList.remove('show'); }
+// === PANTALLAS E INICIALIZACIÓN ===
 
-/* ---------------- pista ---------------- */
-function applyHint() {
-  if (data.runningTest) return;
-  if (data.solved) { toast('El puzzle ya está resuelto 🎉', 'warn'); return; }
-  if (data.paused) { toast('Reanuda la partida primero (P)', 'warn'); return; }
-  const hint = computeHint(data.current, data.solution);
-  if (!hint || hint.none) { toast('No hay ninguna deducción pendiente que aplicar', 'warn'); return; }
-  if (hint.elimination) {
-    toast('Técnica disponible — ' + hint.technique + ': ' + hint.text + ' (informativa, no consume pista)', 'ok', 5200);
+function showScreen(name) {
+  document.getElementById('screen-start').classList.toggle('hidden', name !== 'start');
+  document.getElementById('screen-game').classList.toggle('hidden', name !== 'game');
+  status = name === 'game' ? 'playing' : 'start';
+}
+
+/** Lee ?seed=N de la URL (defecto 1). Funciona en file://. */
+function seedFromUrl() {
+  try {
+    var m = /[?&]seed=(\d+)/.exec(window.location.search || '');
+    if (m) return Math.max(1, parseInt(m[1], 10));
+  } catch (e) {
+    // Sin acceso a la URL: semilla por defecto.
+  }
+  return 1;
+}
+
+/** Intenta reflejar la semilla en la URL sin recargar (best-effort). */
+function pushSeedToUrl(sd) {
+  try {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', '?seed=' + sd);
+    }
+  } catch (e) {
+    // file:// puede no permitirlo: no pasa nada.
+  }
+}
+
+/**
+ * Empieza una partida con nivel y semilla dados (generación real con el RNG).
+ */
+function startGame(lv, sd) {
+  level = lv;
+  seed = sd;
+  pushSeedToUrl(sd);
+  var gen = generatePuzzle(makeRng(sd), lv);
+  puzzle = gen.puzzle;
+  solution = gen.solution;
+  grade = gen.grade;
+  board = puzzle.slice();
+  notes = new Array(81).fill(0);
+  hinted = new Array(81).fill(false);
+  selected = -1;
+  notesMode = false;
+  errors = 0;
+  hintsUsed = 0;
+  undoStack = [];
+  redoStack = [];
+  elapsedMs = 0;
+  document.getElementById('btn-notes').textContent = 'Notas: OFF';
+  document.getElementById('btn-notes').classList.remove('on');
+  document.getElementById('btn-check').textContent = 'Comprobar: ON';
+  checkMode = true;
+  document.getElementById('pause-veil').classList.add('hidden');
+  document.getElementById('victory-veil').classList.add('hidden');
+  showMessage('', '');
+  showScreen('game');
+  lastTick = Date.now();
+  renderBoard();
+  updateDebug();
+}
+
+/** Nueva partida: mismo nivel, siguiente semilla (puzzle distinto). */
+function newSeedGame() {
+  var lv = level === undefined ? pendingLevel : level;
+  var sd = (status === 'start' || seed === undefined) ? seed : seed + 1;
+  showScreen('game');
+  showMessage('Generando puzzle (semilla ' + sd + ')…', '');
+  setTimeout(function () { startGame(lv, sd); }, 30);
+}
+
+var pendingLevel = 'medio';
+
+function moveSelection(dRow, dCol) {
+  var cur = selected >= 0 ? selected : 40;
+  var r = (rowOf(cur) + dRow + 9) % 9;
+  var c = (colOf(cur) + dCol + 9) % 9;
+  selected = r * 9 + c;
+  renderBoard();
+}
+
+function onKeyDown(event) {
+  if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')) {
     return;
   }
-  if (data.counter >= MAX_TIPS) { toast('Límite de ' + MAX_TIPS + ' pistas alcanzado en esta partida', 'err'); return; }
-  const idx = hint.cell;
-  pushHistory();
-  data.current[idx] = hint.value;
-  data.notes[idx] = new Uint8Array(10);
-  data.counter++;
-  data.flashHint = idx;
-  updateStats(); render(); updateOverlayInfo();
-  toast('Pista ' + data.counter + '/' + MAX_TIPS + ' — ' + hint.technique + ': fila ' + (ROW_OF[idx] + 1) +
-    ', columna ' + (COL_OF[idx] + 1) + ' = ' + hint.value, 'ok', 4600);
-  setTimeout(() => { if (data.flashHint === idx) { data.flashHint = null; render(); } }, 2600);
-  if (isBoardComplete()) evaluateWin();
-}
-
-/* ---------------- overlay de depuración ---------------- */
-function toggleOverlay(force) {
-  const show = typeof force === 'boolean' ? force : !els.overlay.classList.contains('show');
-  els.overlay.classList.toggle('show', show);
-  if (show) updateOverlayInfo();
-}
-
-function updateOverlayInfo() {
-  els.dbgSeed.textContent = String(data.seed) + '  (base ' + data.seedBase + ' + partida ' + data.gameIndex + ')';
-  els.dbgLevel.textContent = levelName(data.level) + ' (' + data.level + ')';
-  let clues = 0;
-  for (let i = 0; i < 81; i++) if (data.given[i]) clues++;
-  els.dbgClues.textContent = String(clues);
-  const sols = data.currentPuzzleSolutions;
-  const ok = sols === 1;
-  els.dbgSol.textContent = ok ? '1 ✓ única' : String(sols);
-  els.dbgSol.style.color = ok ? 'var(--ok)' : 'var(--err)';
-  els.statusDot.className = 'dot' + (ok ? '' : ' bad');
-  els.dbgTech.textContent = data.rating ? data.rating.name : '—';
-  els.dbgState.textContent = data.runningTest ? 'AUTOTEST en curso'
-    : data.paused ? 'pausa' : data.solved ? 'resuelto' : 'en juego';
-  els.dbgEngine.textContent = 'Pistas usadas: ' + data.counter + '/' + MAX_TIPS +
-    ' · Errores: ' + data.errors + ' · Deshacer: ' + data.history.length + ' pasos';
-  if (data.rating) {
-    const lvlName = data.rating.level ? levelName(data.rating.level) : '—';
-    els.dbgRatingCode.textContent = lvlName + ' · ' + data.rating.code;
-    const extra = data.rating.level && data.rating.level !== data.level
-      ? ' — por debajo del techo del nivel elegido (techo ' + levelName(data.level) + ')'
-      : '';
-    els.dbgRatingDesc.textContent = data.rating.name + ' (paso ' + data.rating.step + '/' + TECH_LIST.length + ')' + extra;
-    els.dbgRatingBar.style.width = data.rating.pct + '%';
+  var key = event.key;
+  if (key === 'F1') {
+    event.preventDefault();
+    toggleDebug();
+    return;
+  }
+  if (key === '`') {
+    toggleDebug();
+    return;
+  }
+  if (status === 'start') {
+    if (key >= '1' && key <= '4') {
+      startLevel(LEVELS[Number(key) - 1]);
+    } else if (key === 'Enter') {
+      beginFromStart();
+    }
+    return;
+  }
+  if (key === 'p' || key === 'P') {
+    if (status === 'playing' || status === 'paused') togglePause();
+    return;
+  }
+  if (status === 'solved') {
+    if (key === 'Enter') newSeedGame();
+    return;
+  }
+  if (status !== 'playing') return;
+  if (key === 'Enter') {
+    newSeedGame();
+  } else if (/^[1-9]$/.test(key)) {
+    handleNumberInput(Number(key));
+  } else if (key === 'Backspace' || key === 'Delete' || key === '0') {
+    event.preventDefault();
+    eraseSelected();
+  } else if (key === 'ArrowUp') {
+    event.preventDefault();
+    moveSelection(-1, 0);
+  } else if (key === 'ArrowDown') {
+    event.preventDefault();
+    moveSelection(1, 0);
+  } else if (key === 'ArrowLeft') {
+    event.preventDefault();
+    moveSelection(0, -1);
+  } else if (key === 'ArrowRight') {
+    event.preventDefault();
+    moveSelection(0, 1);
+  } else if (key === 'n' || key === 'N') {
+    toggleNotes();
+  } else if (key === 'c' || key === 'C') {
+    toggleCheck();
+  } else if (key === 'h' || key === 'H') {
+    giveHint();
+  } else if (key === 'r' || key === 'R') {
+    restartPuzzle();
+  } else if (key === 'm' || key === 'M') {
+    toggleMute();
+  } else if (key === 'u' || key === 'U') {
+    undoMove();
+  } else if (key === 'y' || key === 'Y') {
+    redoMove();
+  } else if ((event.ctrlKey || event.metaKey) && (key === 'z' || key === 'Z')) {
+    event.preventDefault();
+    if (event.shiftKey) redoMove();
+    else undoMove();
+  } else if ((event.ctrlKey || event.metaKey) && (key === 'y' || key === 'Y')) {
+    event.preventDefault();
+    redoMove();
   }
 }
 
-/* ---------------- AUTOTEST ---------------- */
-function runAutotest(count) {
-  return new Promise((resolve) => {
-    count = Math.max(1, Math.min(500, count | 0));
-    const levels = LEVEL_ORDER;
-    const base = data.seedBase;
-    let fail0 = 0, fail2 = 0, done = 0;
-    let detOk = null;
-    const clueStats = {};
-    const started = Date.now();
-    data.runningTest = true;
-    els.autotestRun.disabled = true;
-    els.autotestStop.disabled = false;
-    delete els.autotestStop.dataset.stop;
-    els.autotestOut.textContent = '';
-    els.autotestStatus.style.color = '';
-    els.autotestProgress.style.width = '0%';
-
-    function step() {
-      if (els.autotestStop.dataset.stop === '1') { finish(true); return; }
-      const seed = (base + done) >>> 0;
-      const level = levels[done % levels.length];
-      const gen = generatePuzzle(seed, level);
-      const n = countSolutions(gen.puzzle, 2, null);
-      if (n === 1) {
-        if (done === 0) {
-          const again = generatePuzzle(seed, level);
-          detOk = again.puzzle.every((v, i) => v === gen.puzzle[i]);
-        }
-      } else if (n === 0) fail0++;
-      else fail2++;
-      const st = clueStats[level] || (clueStats[level] = { min: 99, max: 0, sum: 0, n: 0 });
-      st.min = Math.min(st.min, gen.clues); st.max = Math.max(st.max, gen.clues);
-      st.sum += gen.clues; st.n++;
-      done++;
-      els.autotestProgress.style.width = Math.round((done / count) * 100) + '%';
-      els.autotestStatus.textContent = 'Auditados ' + done + '/' + count + ' · 0 soluciones: ' + fail0 + ' · 2+: ' + fail2;
-      if (done % 10 === 0 || done === count) {
-        els.autotestOut.textContent += '… ' + done + '/' + count + ' puzzles auditados\n';
-        els.autotestOut.scrollTop = els.autotestOut.scrollHeight;
-      }
-      if (done < count) setTimeout(step, 0);
-      else finish(false);
-    }
-
-    function finish(aborted) {
-      data.runningTest = false;
-      els.autotestRun.disabled = false;
-      els.autotestStop.disabled = true;
-      const passed = done - fail0 - fail2;
-      const ms = Date.now() - started;
-      const lines = [];
-      lines.push('Semillas ' + base + '–' + (base + done - 1) + ' · niveles rotando: ' + levels.join(', '));
-      for (const lv of levels) {
-        const st = clueStats[lv];
-        if (st) lines.push('  ' + lv + ': ' + st.n + ' puzzles · pistas ' + st.min + '–' + st.max + ' (media ' + (st.sum / st.n).toFixed(1) + ')');
-      }
-      lines.push('Con solución única: ' + passed + '/' + done);
-      lines.push('Con 0 soluciones: ' + fail0 + ' · con 2 o más: ' + fail2);
-      if (detOk !== null) lines.push('Determinismo (regeneración del puzzle 1): ' + (detOk ? 'OK ✓' : 'FALLO ✗'));
-      lines.push('Duración: ' + (ms / 1000).toFixed(1) + ' s');
-      if (aborted) lines.push('(detenido por el usuario)');
-      const ok = done > 0 && fail0 === 0 && fail2 === 0;
-      lines.push(ok
-        ? (done >= 100
-          ? 'AUTOTEST SUPERADO: ' + passed + '/' + done + ' puzzles con solución única ✓'
-          : 'AUTOTEST SUPERADO (muestra de ' + done + '): ' + passed + '/' + done + ' con solución única ✓')
-        : 'AUTOTEST FALLIDO: ' + passed + '/' + done + ' con solución única ✗');
-      els.autotestOut.textContent = lines.join('\n');
-      els.autotestOut.scrollTop = 0;
-      els.autotestStatus.textContent = lines[lines.length - 1];
-      els.autotestStatus.style.color = ok ? 'var(--ok)' : 'var(--err)';
-      resolve({ passed, total: done, fail0, fail2, ok, detOk });
-      toast(lines[lines.length - 1], ok ? 'ok' : 'err', 5000);
-    }
-
-    setTimeout(step, 0);
-  });
-}
-
-/* ---------------- eventos ---------------- */
-function initButtons() {
-  els.checkBtn.addEventListener('click', toggleCheck);
-  els.hintBtn.addEventListener('click', applyHint);
-  els.undoBtn.addEventListener('click', undo);
-  els.redoBtn.addEventListener('click', redo);
-  els.restartBtn.addEventListener('click', restartGame);
-  els.newBtn.addEventListener('click', startGame);
-  els.notesBtn.addEventListener('click', toggleNotesMode);
-  els.againBtn.addEventListener('click', startGame);
-  els.levelSelect.addEventListener('change', () => {
-    data.level = els.levelSelect.value;
-    startGame();
-  });
-  els.overlayClose.addEventListener('click', () => toggleOverlay(false));
-  els.dbgErrMode.addEventListener('change', () => { data.errorsMode = els.dbgErrMode.checked; render(); });
-  els.autotestRun.addEventListener('click', () => {
-    if (data.runningTest) return;
-    let n = parseInt(els.autotestCount.value, 10);
-    if (!Number.isFinite(n) || n < 1) n = 100;
-    runAutotest(n);
-  });
-  els.autotestStop.addEventListener('click', () => { els.autotestStop.dataset.stop = '1'; });
-}
-
-function initKeys() {
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') { e.preventDefault(); toggleOverlay(); return; }
-    if (e.key === 'Escape') { toggleOverlay(false); return; }
-    const tag = ((e.target && e.target.tagName) || '').toLowerCase();
-    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-    switch (e.key) {
-      case 'ArrowUp': e.preventDefault(); moveSelection(-1, 0); break;
-      case 'ArrowDown': e.preventDefault(); moveSelection(1, 0); break;
-      case 'ArrowLeft': e.preventDefault(); moveSelection(0, -1); break;
-      case 'ArrowRight': e.preventDefault(); moveSelection(0, 1); break;
-      case 'Enter': e.preventDefault(); startGame(); break;
-      case 'p': case 'P': e.preventDefault(); togglePause(); break;
-      case 'r': case 'R': e.preventDefault(); restartGame(); break;
-      case 'm': case 'M': toast('M: esta versión no tiene audio — nada que silenciar', '', 1500); break;
-      case 'n': case 'N': e.preventDefault(); toggleNotesMode(); break;
-      case 'h': case 'H': e.preventDefault(); applyHint(); break;
-      case '`': e.preventDefault(); toggleOverlay(); break;
-      case 'z': case 'Z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); undo(); } break;
-      case 'y': case 'Y': if (e.ctrlKey || e.metaKey) { e.preventDefault(); redo(); } break;
-      case 'Delete': case 'Backspace': e.preventDefault(); eraseCell(); break;
-      case '0': e.preventDefault(); eraseCell(); break;
-      default:
-        if (e.key >= '1' && e.key <= '9') { e.preventDefault(); handleDigit(parseInt(e.key, 10)); }
-    }
-  });
-}
-
-function startRafLoop() {
-  function loop() {
-    if (!data.paused && !data.solved && !data.runningTest && document.body.dataset.state === 'game') {
-      updateStats();
-    }
-    requestAnimationFrame(loop);
+function markLevelButtons() {
+  var btns = document.querySelectorAll('#screen-start [data-level]');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('on', btns[i].getAttribute('data-level') === pendingLevel);
   }
-  requestAnimationFrame(loop);
 }
 
-function initApp() {
-  data.seedBase = readSeedFromUrl();
-  data.level = readLevelFromUrl();
-  data.seed = data.seedBase;
-  data.gameIndex = 0;
-  els.levelSelect.value = data.level;
-  initButtons();
-  initKeys();
-  newGame();
-  startRafLoop();
+/** Lee la semilla del campo de texto (defecto 1). */
+function readSeedInput() {
+  var input = document.getElementById('seed-input');
+  var sd = parseInt(input.value, 10);
+  if (isNaN(sd) || sd < 1) sd = 1;
+  return sd;
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
-else initApp();
+/**
+ * Elige nivel y arranca la partida de inmediato con la semilla indicada.
+ * Es lo que ocurre al pulsar un botón de nivel o las teclas 1-4.
+ */
+function startLevel(lv) {
+  pendingLevel = lv;
+  level = lv;
+  seed = readSeedInput();
+  markLevelButtons();
+  newSeedGame();
+}
 
-/* Gancho para tests automatizados y auditoría (no afecta al juego). */
-window.__sudokuTestHook = {
-  makeRng, generatePuzzle, generateSolvedGrid, countSolutions,
-  gradeGrid, ratePuzzle, computeHint, runAutotest,
-  LEVELS, LEVEL_ORDER, LEVEL_TECHS, TECH_LIST, TECH_BY_ID, LEVEL_BAND, MAX_TIPS,
-  state: data,
-};
+function beginFromStart() {
+  seed = readSeedInput();
+  level = pendingLevel;
+  newSeedGame();
+}
+
+function initGame() {
+  boardEl = document.getElementById('board');
+  padEl = document.getElementById('pad');
+  timerEl = document.getElementById('timer');
+  errorsEl = document.getElementById('errors');
+  hintsEl = document.getElementById('hints-left');
+  bestEl = document.getElementById('best');
+  messageEl = document.getElementById('message');
+  levelNameEl = document.getElementById('level-name');
+
+  buildBoard();
+  buildPad();
+
+  var levelBtns = document.querySelectorAll('#screen-start [data-level]');
+  for (var i = 0; i < levelBtns.length; i++) {
+    (function (btn) {
+      btn.addEventListener('click', function () {
+        startLevel(btn.getAttribute('data-level'));
+      });
+    })(levelBtns[i]);
+  }
+  document.getElementById('seed-input').value = String(seedFromUrl());
+  document.getElementById('btn-start').addEventListener('click', beginFromStart);
+  document.getElementById('btn-check').addEventListener('click', toggleCheck);
+  document.getElementById('btn-hint').addEventListener('click', giveHint);
+  document.getElementById('btn-undo').addEventListener('click', undoMove);
+  document.getElementById('btn-redo').addEventListener('click', redoMove);
+  document.getElementById('btn-notes').addEventListener('click', toggleNotes);
+  document.getElementById('btn-pause').addEventListener('click', togglePause);
+  document.getElementById('btn-restart').addEventListener('click', restartPuzzle);
+  document.getElementById('btn-new2').addEventListener('click', newSeedGame);
+  document.getElementById('btn-mute').addEventListener('click', toggleMute);
+  document.getElementById('btn-again').addEventListener('click', newSeedGame);
+  document.getElementById('btn-view').addEventListener('click', function () {
+    document.getElementById('victory-veil').classList.add('hidden');
+  });
+  document.getElementById('btn-autotest').addEventListener('click', runAutotest);
+  document.addEventListener('keydown', onKeyDown);
+
+  seed = seedFromUrl();
+  pendingLevel = 'medio';
+  markLevelButtons();
+  showScreen('start');
+  lastTick = Date.now();
+  timerId = setInterval(tickTimer, 250);
+}
+
+// El script va al final del <body>: el DOM ya existe.
+initGame();
 </script>
 </body>
 </html>
