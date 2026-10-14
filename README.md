@@ -1,7 +1,9 @@
 # Sudoku — Solución única garantizada
 
-Juego de Sudoku completo en un único `index.html` autocontenido
-(HTML + CSS + JavaScript vanilla, sin frameworks, CDN, build ni red).
+Juego de Sudoku completo en tres ficheros estáticos: `index.html`,
+`style.css` y `sudoku.js` (HTML + CSS + JavaScript vanilla, sin frameworks,
+CDN, build ni red). Sin nada inline, para funcionar bajo una CSP estricta
+(`script-src 'self'; style-src 'self'`).
 Se abre directamente con doble clic (`file://`) y funciona offline.
 
 Prioridad del proyecto: **corrección algorítmica**. Cada puzzle se genera
@@ -103,4 +105,4 @@ no se consume pista y se pide revisar el tablero. Nunca es un valor
 | Semilla por defecto | 1 (`?seed=N` para fijarla) |
 | Autotest por defecto | N = 100, base = 1 |
 | Pistas de ayuda | 3 por partida (celdas bloqueadas en verde) |
-| Ficheros de la entrega | `index.html`, `README.md` (nada más) |
+| Ficheros de la entrega | `index.html`, `style.css`, `sudoku.js`, `README.md` |
